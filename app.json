@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Nanny App",
+    "slug": "nanny-app",
+    "version": "1.0.0",
+    "scheme": "nannyapp",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFF6E6"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nannyapp.provider",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Nanny App needs your location to show your live position to parents.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Nanny App needs location to track your route.",
+        "NSMicrophoneUsageDescription": "Nanny App needs microphone to record session audio for safety."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFF6E6"
+      },
+      "edgeToEdgeEnabled": true,
+      "navigationBarColor": "#FFF6E6",
+      "navigationBarTranslucent": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-router",
+      "expo-audio",
+      "expo-video",
+      ["expo-location", {
+    "locationAlwaysAndWhenInUsePermission": "This app needs location access to track your journey."
+  }]
+    ]
+  }
+}

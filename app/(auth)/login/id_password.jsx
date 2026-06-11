@@ -1,0 +1,141 @@
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { colors } from "../../../constants/color";
+import { fonts } from "../../../constants/font";
+import { CustomButton } from "../../../components/CustomButton";
+import { CustomInput } from "../../../components/CustomInput";
+import { Ionicons } from "@expo/vector-icons";
+
+export default function LoginIdPasswordScreen() {
+  const router = useRouter();
+  const [id, setId] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  return (
+    <SafeAreaView
+      style={styles.container}
+      edges={["top", "left", "right", "bottom"]}
+    >
+      <KeyboardAvoidingView behavior="padding" style={styles.content}>
+        <View style={styles.topSection}>
+          <Text style={styles.title}>Login with ID & Password</Text>
+          <Text style={styles.subtitle}>
+            Enter your credentials to log in.
+          </Text>
+          
+          <Text style={styles.sublabel}>User ID</Text>
+          <CustomInput
+            placeholder="Enter your user ID"
+            value={id}
+            onChangeText={setId}
+            inputStyle={{ borderColor: colors.description }}
+          />
+
+          <Text style={[styles.sublabel, { marginTop: 20 }]}>Password</Text>
+          <CustomInput
+            placeholder="Enter your password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            inputStyle={{ borderColor: colors.description }}
+            rightIcon={
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color={colors.description}
+                />
+              </TouchableOpacity>
+            }
+          />
+        </View>
+
+        <View style={styles.footer}>
+          <CustomButton
+            title="Login"
+            onPress={() => {
+              // TODO: Implement API call here for ID/Password login
+              router.replace("/(main)/(tabs)/requests");
+            }}
+            disabled={!id || !password}
+            style={{
+              borderRadius: 30,
+            }}
+          />
+
+          <TouchableOpacity
+            style={styles.otpLoginButton}
+            onPress={() => router.push("/(auth)/login")}
+          >
+            <Text style={styles.otpLoginText}>Login with Mobile Number & OTP</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 25,
+    paddingTop: 40,
+    justifyContent: "space-between",
+  },
+  topSection: {
+    alignItems: "flex-start",
+  },
+  title: {
+    fontFamily: fonts.chocoShake,
+    fontSize: 28,
+    color: colors.primary,
+    textAlign: "left",
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontFamily: fonts.rubik,
+    fontSize: 16,
+    color: colors.description,
+    textAlign: "left",
+    marginBottom: 40,
+  },
+  sublabel: {
+    fontFamily: fonts.rubik,
+    fontSize: 16,
+    color: colors.description,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  footer: {
+    marginBottom: 60,
+  },
+  otpLoginButton: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.description,
+    borderRadius: 30,
+    padding: 16,
+    alignItems: "center",
+    marginTop: 12,
+  },
+  otpLoginText: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 16,
+    color: colors.description,
+    fontWeight: "bold",
+  },
+});
