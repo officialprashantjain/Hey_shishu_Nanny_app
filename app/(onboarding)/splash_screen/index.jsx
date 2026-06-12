@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors } from '../../../constants/color';
 import { fonts } from '../../../constants/font';
+import SplashImage from '../../../assets/icons/splashImage.svg';
 
 export default function SplashScreen() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function SplashScreen() {
       {/* Logo area */}
       <View style={styles.logoContainer}>
         <View style={styles.logoCircle}>
-          <Text style={styles.logoEmoji}>👶</Text>
+          <SplashImage width={120} height={120} />
         </View>
         <Text style={styles.appName}>Nanny App</Text>
         <Text style={styles.tagline}>Trusted Care, Every Session</Text>
@@ -43,17 +44,17 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   logoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
+    // width: 120,
+    // height: 120,
+    // borderRadius: 60,
+    // backgroundColor: colors.primary,
+    // alignItems: 'center',
+    // justifyContent: 'center',
+    // shadowColor: colors.primary,
+    // shadowOffset: { width: 0, height: 8 },
+    // shadowOpacity: 0.3,
+    // shadowRadius: 16,
+    // elevation: 10,
   },
   logoEmoji: {
     fontSize: 56,

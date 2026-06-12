@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
   // MAP CONTROL BUTTONS
   mapControlsRow: {
     position: 'absolute',
-    bottom: 270,
+    bottom: 310,
     right: 16,
     gap: 10,
     alignItems: 'center',
