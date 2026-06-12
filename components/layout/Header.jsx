@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Platform, Switch } from 'react-native';
 import { DrawerActions } from '@react-navigation/native';
 import { useNavigation, useRouter } from 'expo-router';
-import { colors } from '../constants/color';
-import { fonts } from '../constants/font';
+import { colors } from '../../constants/color';
+import { fonts } from '../../constants/font';
 import { Ionicons } from '@expo/vector-icons';
 
 export const Header = ({ title = "New Requests" }) => {

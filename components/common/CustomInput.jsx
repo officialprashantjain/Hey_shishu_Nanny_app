@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, TextInput, Text, StyleSheet } from 'react-native';
-import { colors } from '../constants/color';
-import { fonts } from '../constants/font';
+import { colors } from '../../constants/color';
+import { fonts } from '../../constants/font';
 
 export const CustomInput = ({
   label,

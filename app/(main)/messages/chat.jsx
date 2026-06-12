@@ -16,7 +16,7 @@ import {
   FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CustomImage as Image } from "../../../components/CustomImage";
+import { CustomImage as Image } from "../../../components/common/CustomImage";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";

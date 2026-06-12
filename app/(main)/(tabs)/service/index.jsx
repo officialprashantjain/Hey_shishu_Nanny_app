@@ -5,8 +5,8 @@ import {
   Animated
 } from 'react-native';
 import { Audio } from 'expo-av';
-import { CustomImage as Image } from '../../../../components/CustomImage';
-import { CustomButton } from '../../../../components/CustomButton';
+import { CustomImage as Image } from '../../../../components/common/CustomImage';
+import { CustomButton } from '../../../../components/common/CustomButton';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../../../constants/color';
 import { fonts } from '../../../../constants/font';

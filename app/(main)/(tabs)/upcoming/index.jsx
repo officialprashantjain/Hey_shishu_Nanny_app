@@ -3,8 +3,8 @@ import { View, StyleSheet, ScrollView, Text, Modal, TouchableOpacity } from 'rea
 import { colors } from '../../../../constants/color';
 import { fonts } from '../../../../constants/font';
 import { useRouter } from 'expo-router';
-import { UpcomingBookingCard } from '../../../../components/UpcomingBookingCard';
-import { CustomButton } from '../../../../components/CustomButton';
+import { UpcomingBookingCard } from '../../../../components/features/UpcomingBookingCard';
+import { CustomButton } from '../../../../components/common/CustomButton';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function UpcomingBookingScreen() {

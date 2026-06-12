@@ -8,7 +8,7 @@ import {
   StatusBar,
   Platform,
 } from "react-native";
-import { CustomImage as Image } from "../../../components/CustomImage";
+import { CustomImage as Image } from "../../../components/common/CustomImage";
 import { useRouter } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { setAudioModeAsync } from "expo-audio";

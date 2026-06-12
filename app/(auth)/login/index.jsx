@@ -12,9 +12,9 @@ import { useRouter } from "expo-router";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
 // import { SignUpHeader } from "../../../components/SignUpHeader";
-import { CustomButton } from "../../../components/CustomButton";
-import { CustomInput } from "../../../components/CustomInput";
-import { CustomImage as Image } from "../../../components/CustomImage";
+import { CustomButton } from "../../../components/common/CustomButton";
+import { CustomInput } from "../../../components/common/CustomInput";
+import { CustomImage as Image } from "../../../components/common/CustomImage";
 
 export default function LoginOTPScreen() {
   const router = useRouter();

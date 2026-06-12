@@ -10,7 +10,7 @@ import {
   Easing,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CustomImage as Image } from "../../../components/CustomImage";
+import { CustomImage as Image } from "../../../components/common/CustomImage";
 import { useRouter, useFocusEffect } from "expo-router";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";

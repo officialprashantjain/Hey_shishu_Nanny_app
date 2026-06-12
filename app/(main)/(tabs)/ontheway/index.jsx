@@ -6,12 +6,12 @@ import {
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { CustomImage as Image } from '../../../../components/CustomImage';
+import { CustomImage as Image } from '../../../../components/common/CustomImage';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../../../constants/color';
 import { fonts } from '../../../../constants/font';
 import { useRouter } from 'expo-router';
-import { CustomButton } from '../../../../components/CustomButton';
+import { CustomButton } from '../../../../components/common/CustomButton';
 
 const { width } = Dimensions.get('window');
 

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { colors } from '../constants/color';
-import { fonts } from '../constants/font';
-import { CustomButton } from './CustomButton';
+import { colors } from '../../constants/color';
+import { fonts } from '../../constants/font';
+import { CustomButton } from '../common/CustomButton';
 
 /**
  * OtpModal — Reusable OTP verification popup
@@ -21,7 +21,7 @@ import { CustomButton } from './CustomButton';
  */
 export const OtpModal = ({ visible, title, subtitle, onConfirm, onCancel }) => {
   const [otp, setOtp] = React.useState(['', '', '', '']);
-  const inputs = useRef([]);
+  const inputs = React.useRef([]);
 
   const handleChange = (val, index) => {
     const newOtp = [...otp];

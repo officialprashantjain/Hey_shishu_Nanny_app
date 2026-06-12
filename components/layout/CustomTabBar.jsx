@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Dimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '../constants/color';
-import { fonts } from '../constants/font';
+import { colors } from '../../constants/color';
+import { fonts } from '../../constants/font';
 import { Ionicons } from '@expo/vector-icons';
 
 export function CustomTabBar({ state, descriptors, navigation }) {
@@ -28,11 +28,9 @@ export function CustomTabBar({ state, descriptors, navigation }) {
         let iconName;
         let label;
         if (route.name === 'requests/index') {
-          // Changed to alarm/notifications based on image ref
           iconName = isFocused ? 'notifications' : 'notifications-outline';
           label = 'New Jobs';
         } else if (route.name === 'upcoming/index') {
-          // Keep upcoming as calendar if it exists in routes
           iconName = isFocused ? 'calendar' : 'calendar-outline';
           label = 'Schedule';
         } else if (route.name === 'ontheway/index') {
@@ -87,7 +85,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 30,
     paddingTop: 16,
     paddingHorizontal: 8,
-    // Add shadow specifically for the bottom bar popping up
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -5 },
     shadowOpacity: 0.1,
@@ -100,7 +97,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    // Add a little extra height to padding to make tap area comfortable
     paddingVertical: 4,
   },
   tabLabel: {
