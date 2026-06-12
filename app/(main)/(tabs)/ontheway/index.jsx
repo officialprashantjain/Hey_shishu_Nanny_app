@@ -42,6 +42,7 @@ export default function OnTheWayScreen() {
   const [nannyLocation, setNannyLocation] = useState(null);   // live GPS
   const [locationError, setLocationError] = useState(null);
   const [showOtpModal, setShowOtpModal] = useState(false);
+  const [showAudioModal, setShowAudioModal] = useState(false);
   const [otp, setOtp] = useState(['', '', '', '']);
   const [routePoints, setRoutePoints] = useState([]);
   const [travelStats, setTravelStats] = useState({ distance: '--', duration: '--' });
@@ -147,7 +148,8 @@ export default function OnTheWayScreen() {
     // TODO: Call API here to verify OTP
     // On success, navigate to Service tab
     setShowOtpModal(false);
-    router.replace('/(main)/(tabs)/service');
+    setOtp(['', '', '', '']);
+    setShowAudioModal(true);
   };
 
   // ── Re-center map ─────────────────────────────────────────────────────────
@@ -334,7 +336,7 @@ export default function OnTheWayScreen() {
         visible={showOtpModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowOtpModal(false)}
+        onRequestClose={() => { setShowOtpModal(false); setOtp(['', '', '', '']); }}
       >
         <KeyboardAvoidingView
           style={styles.modalOverlay}
@@ -381,11 +383,43 @@ export default function OnTheWayScreen() {
               }}
             />
 
-            <TouchableOpacity style={styles.cancelLink} onPress={() => setShowOtpModal(false)}>
+            <TouchableOpacity style={styles.cancelLink} onPress={() => { setShowOtpModal(false); setOtp(['', '', '', '']); }}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── AUDIO PERMISSION PRE-PROMPT MODAL ────────────────────────────── */}
+      <Modal
+        visible={showAudioModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAudioModal(false)}
+      >
+        <View style={styles.modalOverlayCenter}>
+          <View style={styles.modalSheetCenter}>
+            <View style={styles.modalIconBoxCenter}>
+              <Ionicons name="mic" size={32} color={colors.primary} />
+            </View>
+            <Text style={styles.modalTitleCenter}>Microphone Access</Text>
+            <Text style={styles.modalSubCenter}>
+              Your session is starting. For maximum safety and dispute resolution, the microphone will remain active during the session.
+            </Text>
+
+            <CustomButton
+              title="Allow Microphone & Start"
+              onPress={() => {
+                setShowAudioModal(false);
+                router.replace('/(main)/(tabs)/service');
+              }}
+              style={{ borderRadius: 30, marginBottom: 12, width: '100%', backgroundColor: colors.primary }}
+            />
+            <TouchableOpacity style={styles.cancelLink} onPress={() => setShowAudioModal(false)}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
     </View>
@@ -614,4 +648,35 @@ const styles = StyleSheet.create({
   },
   cancelLink: { alignItems: 'center', padding: 8 },
   cancelText: { fontFamily: fonts.rubik, fontSize: 15, color: colors.description },
+
+  // Center Modal styles for Audio Pre-prompt
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalSheetCenter: {
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+  },
+  modalIconBoxCenter: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: '#FFF0F0',
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitleCenter: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 20, color: colors.primary,
+    textAlign: 'center', marginBottom: 12,
+  },
+  modalSubCenter: {
+    fontFamily: fonts.rubik,
+    fontSize: 15, color: colors.description,
+    textAlign: 'center', lineHeight: 22,
+    marginBottom: 24,
+  },
 });

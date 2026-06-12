@@ -30,17 +30,17 @@ export function CustomTabBar({ state, descriptors, navigation }) {
         if (route.name === 'requests/index') {
           // Changed to alarm/notifications based on image ref
           iconName = isFocused ? 'notifications' : 'notifications-outline';
-          label = 'Requests';
+          label = 'New Jobs';
         } else if (route.name === 'upcoming/index') {
           // Keep upcoming as calendar if it exists in routes
           iconName = isFocused ? 'calendar' : 'calendar-outline';
-          label = 'Upcoming';
+          label = 'Schedule';
         } else if (route.name === 'ontheway/index') {
           iconName = isFocused ? 'map' : 'map-outline';
-          label = 'On The Way';
+          label = 'Route';
         } else if (route.name === 'service/index') {
           iconName = isFocused ? 'play-circle' : 'play-circle-outline';
-          label = 'Service';
+          label = 'Session';
         } else if (route.name === 'message/index') {
           iconName = isFocused ? 'chatbubbles' : 'chatbubbles-outline';
           label = 'Message';

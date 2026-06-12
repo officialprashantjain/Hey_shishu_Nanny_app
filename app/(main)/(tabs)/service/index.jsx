@@ -37,6 +37,8 @@ export default function ServiceScreen() {
   const [isRecording, setIsRecording] = useState(true); // Default to simulating ON state
   
   const [showOtpModal, setShowOtpModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showSosModal, setShowSosModal] = useState(false);
   const [otp, setOtp] = useState(['', '', '', '']);
   const otpRefs = useRef([]);
 
@@ -145,9 +147,9 @@ export default function ServiceScreen() {
       return;
     }
     setShowOtpModal(false);
-    // On success, redirect to summary or home
-    Alert.alert('Service Completed successfully!', 'Returning to Job Board.');
-    router.replace('/(main)/(tabs)/requests');
+    setOtp(['', '', '', '']);
+    // On success, show custom success modal instead of system alert
+    setShowSuccessModal(true);
   };
 
   // ── Helper to render sound waves visually ─────────────────────────────────
@@ -241,17 +243,17 @@ export default function ServiceScreen() {
               {renderSoundWaves()}
             </View>
 
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={[styles.stopBtn, !isRecording && { backgroundColor: colors.primary }]} 
               onPress={toggleRecording}
             >
               <Text style={styles.stopBtnText}>{isRecording ? 'Stop' : 'Start'}</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
 
         {/* ── SOS EMERGENCY BUTTON ─────────────────────────────────────────── */}
-        <TouchableOpacity style={styles.sosButton}>
+        <TouchableOpacity style={styles.sosButton} onPress={() => setShowSosModal(true)}>
           <Ionicons name="shield-checkmark" size={24} color={colors.white} />
           <Text style={styles.sosButtonText}>SOS Emergency</Text>
         </TouchableOpacity>
@@ -281,7 +283,7 @@ export default function ServiceScreen() {
         visible={showOtpModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowOtpModal(false)}
+        onRequestClose={() => { setShowOtpModal(false); setOtp(['', '', '', '']); }}
       >
         <KeyboardAvoidingView
           style={styles.modalOverlay}
@@ -327,11 +329,95 @@ export default function ServiceScreen() {
               }}
             />
 
-            <TouchableOpacity style={styles.cancelLink} onPress={() => setShowOtpModal(false)}>
+            <TouchableOpacity style={styles.cancelLink} onPress={() => { setShowOtpModal(false); setOtp(['', '', '', '']); }}>
               <Text style={styles.cancelText}>Resume Service</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── SUCCESS MODAL ──────────────────────────────────────────────── */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.modalOverlayCenter}>
+          <View style={styles.modalSheetCenter}>
+            <View style={[styles.modalIconBoxCenter, { backgroundColor: '#E8F5E9' }]}>
+              <Ionicons name="checkmark-circle" size={40} color="#4CAF50" />
+            </View>
+            <Text style={styles.modalTitleCenter}>Service Completed!</Text>
+            <Text style={styles.modalSubCenter}>
+              You have successfully completed this session. Returning to the Job Board.
+            </Text>
+
+            <CustomButton
+              title="Back to Job Board"
+              onPress={() => {
+                setShowSuccessModal(false);
+                router.replace('/(main)/(tabs)/requests');
+              }}
+              style={{ borderRadius: 30, width: '100%', backgroundColor: colors.primary }}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── SOS EMERGENCY MODAL ──────────────────────────────────────────────── */}
+      <Modal
+        visible={showSosModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowSosModal(false)}
+      >
+        <View style={styles.sosModalOverlay}>
+          <View style={styles.sosModalSheet}>
+            <View style={styles.sosDragIndicator} />
+            <Text style={styles.sosModalTitle}>Emergency SOS</Text>
+            <Text style={styles.sosModalSub}>
+              Select who you need to contact urgently. Local authorities will be dispatched if you call emergency services.
+            </Text>
+
+            <TouchableOpacity 
+              style={[styles.sosActionBtn, { backgroundColor: '#E53935' }]} 
+              onPress={() => { setShowSosModal(false); /* Linking.openURL('tel:112') */ }}
+            >
+              <Ionicons name="warning-outline" size={24} color={colors.white} />
+              <View style={{ marginLeft: 16 }}>
+                <Text style={styles.sosActionTitleLight}>Call Emergency</Text>
+                <Text style={styles.sosActionSubLight}>Police / Ambulance (112)</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.sosActionBtn, { backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#EAEAEA' }]} 
+              onPress={() => { setShowSosModal(false); router.push('/(main)/messages/incoming_call'); }}
+            >
+              <Ionicons name="call-outline" size={24} color={colors.primary} />
+              <View style={{ marginLeft: 16 }}>
+                <Text style={styles.sosActionTitleDark}>Call Parent</Text>
+                <Text style={styles.sosActionSubDark}>{ACTIVE_JOB.parentName}</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.sosActionBtn, { backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#EAEAEA', marginBottom: 24 }]} 
+              onPress={() => { setShowSosModal(false); router.push('/(main)/messages/incoming_call'); }}
+            >
+              <Ionicons name="headset-outline" size={24} color={colors.primary} />
+              <View style={{ marginLeft: 16 }}>
+                <Text style={styles.sosActionTitleDark}>HeyShishu Support</Text>
+                <Text style={styles.sosActionSubDark}>24/7 Safety Team</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sosCancelLink} onPress={() => setShowSosModal(false)}>
+              <Text style={styles.sosCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
     </View>
@@ -642,4 +728,96 @@ const styles = StyleSheet.create({
   },
   cancelLink: { alignItems: 'center', padding: 8 },
   cancelText: { fontFamily: fonts.rubik, fontSize: 15, color: colors.description },
+
+  // Center Modal styles for Success Modal
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalSheetCenter: {
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+  },
+  modalIconBoxCenter: {
+    width: 64, height: 64, borderRadius: 32,
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitleCenter: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 20, color: colors.primary,
+    textAlign: 'center', marginBottom: 12,
+  },
+  modalSubCenter: {
+    fontFamily: fonts.rubik,
+    fontSize: 15, color: colors.description,
+    textAlign: 'center', lineHeight: 22,
+    marginBottom: 24,
+  },
+
+  // SOS Modal Styles
+  sosModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  sosModalSheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 44 : 30,
+  },
+  sosDragIndicator: {
+    width: 40, height: 4,
+    backgroundColor: '#DDDDE0',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  sosModalTitle: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 22, color: '#E53935',
+    textAlign: 'center', marginBottom: 8,
+  },
+  sosModalSub: {
+    fontFamily: fonts.rubik,
+    fontSize: 14, color: colors.description,
+    textAlign: 'center', lineHeight: 20,
+    marginBottom: 24,
+  },
+  sosActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  sosActionTitleLight: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 16, color: colors.white,
+  },
+  sosActionSubLight: {
+    fontFamily: fonts.rubik,
+    fontSize: 13, color: colors.white, opacity: 0.9,
+  },
+  sosActionTitleDark: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 16, color: colors.primary,
+  },
+  sosActionSubDark: {
+    fontFamily: fonts.rubik,
+    fontSize: 13, color: colors.description,
+  },
+  sosCancelLink: {
+    alignItems: 'center', padding: 8, marginTop: 8
+  },
+  sosCancelText: {
+    fontFamily: fonts.rubikBold, fontSize: 16, color: colors.description,
+  },
 });

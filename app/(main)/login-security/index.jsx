@@ -32,7 +32,7 @@ export default function LoginSecurityScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => router.replace('/(main)/profile')}
           style={styles.backButton}
         >
           <Image

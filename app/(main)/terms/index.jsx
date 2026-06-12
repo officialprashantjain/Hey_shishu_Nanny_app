@@ -19,7 +19,7 @@ export default function TermsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => router.replace('/(main)/profile')}
           style={styles.backButton}
         >
           <Image

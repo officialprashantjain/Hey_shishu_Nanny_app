@@ -11,12 +11,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomImage as Image } from "../../../components/CustomImage";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
+  const [isPhotoModalVisible, setIsPhotoModalVisible] = useState(false);
+  const [profilePicUri, setProfilePicUri] = useState(null);
 
   const menuOptions = [
     {
@@ -62,6 +65,46 @@ export default function ProfileScreen() {
     },
   ];
 
+  const handlePickImage = async () => {
+    setIsPhotoModalVisible(false);
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Sorry, we need camera roll permissions to make this work!');
+      return;
+    }
+
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setProfilePicUri(result.assets[0].uri);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    setIsPhotoModalVisible(false);
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Sorry, we need camera permissions to make this work!');
+      return;
+    }
+
+    let result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setProfilePicUri(result.assets[0].uri);
+    }
+  };
+
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -94,11 +137,11 @@ export default function ProfileScreen() {
         <View style={styles.userCard}>
           <View style={styles.avatarRow}>
             <Image
-              source={require("../../../assets/icons/nanny-image.svg")}
+              source={profilePicUri ? { uri: profilePicUri } : require("../../../assets/icons/nanny-image.svg")}
               style={styles.profilePic}
             />
 
-            <TouchableOpacity style={styles.changePhotoButton}>
+            <TouchableOpacity style={styles.changePhotoButton} onPress={() => setIsPhotoModalVisible(true)}>
               <Text style={styles.changePhotoText}>Change Photo</Text>
             </TouchableOpacity>
           </View>
@@ -206,6 +249,34 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── PHOTO OPTIONS MODAL ────────────────────────────────────────────── */}
+      <Modal
+        visible={isPhotoModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsPhotoModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.photoModalContent}>
+            <Text style={styles.photoModalTitle}>Profile Photo</Text>
+            
+            <TouchableOpacity style={styles.photoOptionBtn} onPress={handleTakePhoto}>
+              <Text style={styles.photoOptionText}>Take Photo</Text>
+            </TouchableOpacity>
+            
+            <View style={styles.divider} />
+            
+            <TouchableOpacity style={styles.photoOptionBtn} onPress={handlePickImage}>
+              <Text style={styles.photoOptionText}>Choose from Gallery</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.photoCancelBtn} onPress={() => setIsPhotoModalVisible(false)}>
+              <Text style={styles.photoCancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -250,7 +321,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   scrollContent: {
-    paddingTop: 120,
+    paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
@@ -418,5 +489,43 @@ const styles = StyleSheet.create({
   logoutBtnText: {
     color: colors.white,
     fontFamily: fonts.rubikBold,
+  },
+  photoModalContent: {
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    width: "85%",
+    overflow: "hidden",
+  },
+  photoModalTitle: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 18,
+    color: colors.description,
+    textAlign: "center",
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  photoOptionBtn: {
+    paddingVertical: 20,
+    alignItems: "center",
+  },
+  photoOptionText: {
+    fontFamily: fonts.rubik,
+    fontSize: 16,
+    color: colors.primary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#F0F0F0",
+  },
+  photoCancelBtn: {
+    backgroundColor: "#F5F5F5",
+    paddingVertical: 18,
+    alignItems: "center",
+  },
+  photoCancelBtnText: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 16,
+    color: colors.description,
   },
 });
