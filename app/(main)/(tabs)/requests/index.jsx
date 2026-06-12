@@ -62,20 +62,20 @@ export default function RequestsScreen() {
       ))}
 
       {/* Title for remaining list */}
-      {otherRequests.length > 0 && (
+      {/* {otherRequests.length > 0 && (
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Other Requests</Text>
         </View>
-      )}
+      )} */}
 
       {/* Render list of smaller compact requests */}
-      {otherRequests.map(item => (
+      {/* {otherRequests.map(item => (
         <SmallRequestCard 
           key={item.id} 
           data={item} 
           onPress={() => handleViewRequestDetails(item)}
         />
-      ))}
+      ))} */}
       
       {/* Bottom spacing to account for Tab bar */}
       <View style={{ height: 120 }} />

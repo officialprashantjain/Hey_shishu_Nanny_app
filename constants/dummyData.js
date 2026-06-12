@@ -60,7 +60,7 @@ export const mockRequests = [
     location: "Sector 14, Gurugram",
     distance: "2.5 km",
     notes: "Just feeding and putting to sleep.",
-    isNew: false,
+    isNew: true,
     postedAgo: "2h ago",
   },
   {
@@ -76,7 +76,7 @@ export const mockRequests = [
     location: "Vasant Kunj, Delhi",
     distance: "8.1 km",
     notes: "Needs help with basic alphabet reading.",
-    isNew: false,
+    isNew: true,
     postedAgo: "5h ago",
   },
 ];
