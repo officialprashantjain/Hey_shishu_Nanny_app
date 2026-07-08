@@ -9,8 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { colors } from '../../constants/color';
-import { fonts } from '../../constants/font';
+import { colors } from '../../../constants/color';
+import { fonts } from '../../../constants/font';
 import { CustomButton } from '../common/CustomButton';
 
 /**

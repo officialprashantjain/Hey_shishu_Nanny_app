@@ -11,7 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CustomImage as Image } from "../../../components/common/CustomImage";
+import { CustomImage as Image } from "../../../src/components/common/CustomImage";
 import { useRouter, Stack } from "expo-router";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";

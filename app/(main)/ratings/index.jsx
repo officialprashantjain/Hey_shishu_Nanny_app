@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   FlatList,
 } from "react-native";
-import { CustomImage as Image } from "../../../components/common/CustomImage";
+import { CustomImage as Image } from "../../../src/components/common/CustomImage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { colors } from "../../../constants/color";

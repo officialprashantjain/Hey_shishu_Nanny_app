@@ -1,5 +1,5 @@
 import { Drawer } from 'expo-router/drawer';
-import CustomDrawerContent from '../../components/layout/CustomDrawerContent';
+import CustomDrawerContent from '../../src/components/layout/CustomDrawerContent';
 import { colors } from '../../constants/color';
 
 export default function MainLayout() {

@@ -1,5 +1,5 @@
 import React from 'react';
-import ChatList from '../../../components/features/ChatList';
+import ChatList from '../../../src/components/features/ChatList';
 
 export default function MessagesScreen() {
   return <ChatList showBackButton backRoute="/(main)/(tabs)/requests" />;

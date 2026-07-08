@@ -7,7 +7,7 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CustomImage as Image } from "../../../components/common/CustomImage";
+import { CustomImage as Image } from "../../../src/components/common/CustomImage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { colors } from "../../../constants/color";

@@ -13,7 +13,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
 // import { SignUpHeader } from "../../../components/SignUpHeader";
-import { CustomButton } from "../../../components/common/CustomButton";
+import { CustomButton } from "../../../src/components/common/CustomButton";
 
 export default function LoginOTPScreen() {
   const router = useRouter();

@@ -11,8 +11,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
-import { CustomButton } from "../../../components/common/CustomButton";
-import { CustomInput } from "../../../components/common/CustomInput";
+import { CustomButton } from "../../../src/components/common/CustomButton";
+import { CustomInput } from "../../../src/components/common/CustomInput";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function LoginIdPasswordScreen() {

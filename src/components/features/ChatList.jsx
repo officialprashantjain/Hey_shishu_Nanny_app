@@ -11,8 +11,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomImage as Image } from "../common/CustomImage";
 import { useRouter } from "expo-router";
-import { colors } from "../../constants/color";
-import { fonts } from "../../constants/font";
+import { colors } from "../../../constants/color";
+import { fonts } from "../../../constants/font";
 
 const { width } = Dimensions.get("window");
 
@@ -65,7 +65,7 @@ export default function ChatList({ showBackButton = false, backRoute }) {
               style={styles.backButton}
             >
               <Image
-                source={require("../../assets/icons/left-arrow.svg")}
+                source={require("../../../assets/icons/left-arrow.svg")}
                 style={styles.backIcon}
                 tintColor={colors.description}
                 contentFit="contain"
@@ -82,7 +82,7 @@ export default function ChatList({ showBackButton = false, backRoute }) {
       >
         <View style={styles.searchContainer}>
           <Image
-            source={require("../../assets/icons/search.svg")}
+            source={require("../../../assets/icons/search.svg")}
             style={styles.searchIcon}
             tintColor="#71717A"
             contentFit="contain"
@@ -107,7 +107,7 @@ export default function ChatList({ showBackButton = false, backRoute }) {
                 <View style={styles.avatarWrapper}>
                   <View style={[styles.avatar]}>
                     <Image
-                      source={require("../../assets/icons/nanny-image.svg")}
+                      source={require("../../../assets/icons/nanny-image.svg")}
                       style={styles.avatarIcon}
                       contentFit="cover"
                     />

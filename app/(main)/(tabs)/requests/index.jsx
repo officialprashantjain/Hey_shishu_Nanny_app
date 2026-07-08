@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { colors } from '../../../../constants/color';
 import { fonts } from '../../../../constants/font';
 import { mockRequests } from '../../../../constants/dummyData';
-import { RequestCard } from '../../../../components/features/RequestCard';
-import { SmallRequestCard } from '../../../../components/features/SmallRequestCard';
+import { RequestCard } from '../../../../src/components/features/RequestCard';
+import { SmallRequestCard } from '../../../../src/components/features/SmallRequestCard';
 
 import { useRouter } from 'expo-router';
 

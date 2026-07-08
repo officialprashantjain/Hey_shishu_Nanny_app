@@ -2,8 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { CustomImage as Image } from '../common/CustomImage';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../constants/color';
-import { fonts } from '../../constants/font';
+import { colors } from '../../../constants/color';
+import { fonts } from '../../../constants/font';
 
 export const SmallRequestCard = ({ data, onPress }) => {
   return (

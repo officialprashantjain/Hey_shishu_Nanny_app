@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Dimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '../../constants/color';
-import { fonts } from '../../constants/font';
+import { colors } from '../../../constants/color';
+import { fonts } from '../../../constants/font';
 import { Ionicons } from '@expo/vector-icons';
 
 export function CustomTabBar({ state, descriptors, navigation }) {
