@@ -6,20 +6,51 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useDispatch, useSelector } from "react-redux";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
 import { CustomButton } from "../../../src/components/common/CustomButton";
 import { CustomInput } from "../../../src/components/common/CustomInput";
 import { Ionicons } from "@expo/vector-icons";
+import { loginNanny } from "../../../src/services/authServices";
+import { selectAuthLoading, selectAuthError } from "../../../src/redux/slices/authSlice";
 
 export default function LoginIdPasswordScreen() {
   const router = useRouter();
+  const dispatch = useDispatch();
+  const isLoading = useSelector(selectAuthLoading);
+  const authError = useSelector(selectAuthError);
+
   const [id, setId] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  const handleLogin = async () => {
+    if (!id.trim() || !password.trim()) return;
+    const result = await dispatch(loginNanny(id.trim(), password.trim()));
+    if (result.success) {
+      if (!result.isProfileComplete) {
+        Alert.alert(
+          'Profile Incomplete ⚠️',
+          'Your profile is not complete yet. Please fill in your details to get started.',
+          [
+            {
+              text: 'Complete Now',
+              onPress: () => router.replace('/(main)/personal-info'),
+            },
+          ],
+          { cancelable: false }
+        );
+      } else {
+        router.replace('/(main)/(tabs)/requests');
+      }
+    }
+  };
 
   return (
     <SafeAreaView
@@ -60,17 +91,17 @@ export default function LoginIdPasswordScreen() {
           />
         </View>
 
+        {authError ? (
+          <Text style={styles.errorText}>{authError}</Text>
+        ) : null}
+
         <View style={styles.footer}>
           <CustomButton
-            title="Login"
-            onPress={() => {
-              // TODO: Implement API call here for ID/Password login
-              router.replace("/(main)/(tabs)/requests");
-            }}
-            disabled={!id || !password}
-            style={{
-              borderRadius: 30,
-            }}
+            title={isLoading ? "" : "Login"}
+            onPress={handleLogin}
+            disabled={!id || !password || isLoading}
+            style={{ borderRadius: 30 }}
+            icon={isLoading ? <ActivityIndicator color={colors.white} /> : null}
           />
 
           <TouchableOpacity
@@ -119,6 +150,14 @@ const styles = StyleSheet.create({
     color: colors.description,
     fontWeight: "bold",
     marginBottom: 8,
+  },
+  errorText: {
+    fontFamily: fonts.rubik,
+    fontSize: 14,
+    color: "#D32F2F",
+    marginBottom: 12,
+    marginTop: -10,
+    textAlign: "center",
   },
   footer: {
     marginBottom: 60,

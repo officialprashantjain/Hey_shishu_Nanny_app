@@ -12,31 +12,54 @@ import { colors } from '../../../../constants/color';
 import { fonts } from '../../../../constants/font';
 import { useRouter } from 'expo-router';
 import { CustomButton } from '../../../../src/components/common/CustomButton';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchOngoingBookings, startRunningBooking, selectOngoingBookings, selectBookingLoading } from '../../../../src/redux/slices/bookingSlice';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useMemo } from 'react';
+import { useAlert } from '../../../../src/contexts/AlertContext';
 
 const { width } = Dimensions.get('window');
-
-// ── dummy active job injected by navigation params in real app ──────────────
-const ACTIVE_JOB = {
-  id: 'JOB-A12X',
-  childName: 'Aarav Mehta',
-  childAge: '2.5 Years Old',
-  childPhoto: 'https://plus.unsplash.com/premium_photo-1667480556784-a8f27e62104c?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-  parentName: 'Sneha Sharma',
-  parentPhoto: 'https://xsgames.co/randomusers/assets/avatars/male/12.jpg',
-  address: 'Sector 45, Noida',
-  eta: '12 min',
-  distance: '1.8 km',
-  childNotes: 'Aarav loves story time and outdoor play. Peanut allergy.',
-  date: 'Today, 12 May 2025',
-  time: '10:00 AM – 2:00 PM',
-  // Destination co-ordinates — Parent's actual location (provided by user/API)
-  destination: { latitude: 22.75132520849745, longitude: 75.89465171991296 },
-};
 
 export default function OnTheWayScreen() {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const router = useRouter();
   const mapRef = useRef(null);
+  const { showAlert } = useAlert();
+  
+  const dispatch = useDispatch();
+  const ongoingBookings = useSelector(selectOngoingBookings);
+  const isLoading = useSelector(selectBookingLoading);
+  
+  useFocusEffect(
+    useCallback(() => {
+      dispatch(fetchOngoingBookings());
+    }, [dispatch])
+  );
+  
+  const ACTIVE_JOB = useMemo(() => {
+    if (!ongoingBookings || ongoingBookings.length === 0) return null;
+    const booking = ongoingBookings[0];
+    const start = new Date(booking.startDateTime);
+    const end = new Date(booking.endDateTime);
+    return {
+      id: booking._id,
+      childName: booking.childIds?.[0]?.firstName || 'Aarav Mehta',
+      childAge: booking.childIds?.[0]?.age ? `${booking.childIds[0].age} Years Old` : '2.5 Years Old',
+      childPhoto: require('../../../../assets/icons/nanny-image.svg'),
+      parentName: booking.parentId?.fullName || 'Sneha Sharma',
+      parentPhoto: require('../../../../assets/icons/nanny-image.svg'),
+      address: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`,
+      distance: '1.8 km',
+      childNotes: booking.parentNotes || '',
+      date: start.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+      time: `${start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })} – ${end.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })}`,
+      destination: { 
+        latitude: booking.serviceLocation?.coordinates?.[1] || 22.7513, 
+        longitude: booking.serviceLocation?.coordinates?.[0] || 75.8946 
+      },
+      fullAddress: booking.address?.fullAddress || '',
+    };
+  }, [ongoingBookings]);
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [nannyLocation, setNannyLocation] = useState(null);   // live GPS
@@ -93,7 +116,10 @@ export default function OnTheWayScreen() {
       const { latitude, longitude } = initial.coords;
       const initialLoc = { latitude, longitude };
       setNannyLocation(initialLoc);
-      fetchOSRMRoute(initialLoc, ACTIVE_JOB.destination);
+      
+      if (ACTIVE_JOB) {
+        fetchOSRMRoute(initialLoc, ACTIVE_JOB.destination);
+      }
 
       // Watch live position updates
       subscription = await Location.watchPositionAsync(
@@ -107,13 +133,14 @@ export default function OnTheWayScreen() {
           const newLoc = { latitude: lat, longitude: lng };
           setNannyLocation(newLoc);
           
-          // Only fetch new route if nanny is still far enough
-          fetchOSRMRoute(newLoc, ACTIVE_JOB.destination);
+          if (ACTIVE_JOB) {
+             fetchOSRMRoute(newLoc, ACTIVE_JOB.destination);
+          }
         }
       );
 
       // Fit map to show both markers
-      if (mapRef.current) {
+      if (mapRef.current && ACTIVE_JOB && initialLoc) {
         mapRef.current.fitToCoordinates(
           [initialLoc, ACTIVE_JOB.destination],
           { edgePadding: { top: 140, right: 40, bottom: 300, left: 40 }, animated: true }
@@ -122,7 +149,7 @@ export default function OnTheWayScreen() {
     })();
 
     return () => { if (subscription) subscription.remove(); };
-  }, []);
+  }, [ACTIVE_JOB]);
 
   // ── OTP Handlers
   const handleOtpChange = (text, index) => {
@@ -139,22 +166,34 @@ export default function OnTheWayScreen() {
     }
   };
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     const enteredOtp = otp.join('');
     if (enteredOtp.length < 4) {
-      Alert.alert('Incomplete OTP', 'Please enter the 4-digit OTP provided by the parent.');
+      showAlert('Incomplete OTP', 'Please enter the 4-digit OTP provided by the parent.');
       return;
     }
-    // TODO: Call API here to verify OTP
-    // On success, navigate to Service tab
-    setShowOtpModal(false);
-    setOtp(['', '', '', '']);
-    setShowAudioModal(true);
+    if (!ACTIVE_JOB) {
+      showAlert('Error', 'No active job found.');
+      return;
+    }
+    
+    try {
+      const resultAction = await dispatch(startRunningBooking({ id: ACTIVE_JOB.id, otp: enteredOtp }));
+      if (startRunningBooking.fulfilled.match(resultAction)) {
+        setShowOtpModal(false);
+        setOtp(['', '', '', '']);
+        setShowAudioModal(true);
+      } else {
+        showAlert('Error', resultAction.payload || 'Incorrect OTP or verification failed.');
+      }
+    } catch (error) {
+      showAlert('Error', 'An unexpected error occurred verifying OTP.');
+    }
   };
 
   // ── Re-center map ─────────────────────────────────────────────────────────
   const handleRecenter = () => {
-    if (!nannyLocation || !mapRef.current) return;
+    if (!nannyLocation || !mapRef.current || !ACTIVE_JOB) return;
     mapRef.current.fitToCoordinates(
       [nannyLocation, ACTIVE_JOB.destination],
       { edgePadding: { top: 140, right: 40, bottom: 300, left: 40 }, animated: true }
@@ -162,24 +201,30 @@ export default function OnTheWayScreen() {
   };
 
   // ── MAP REGION (fallback if GPS not yet acquired) ─────────────────────────
-  const mapRegion = nannyLocation
+  const mapRegion = (nannyLocation && ACTIVE_JOB)
     ? {
         latitude: (nannyLocation.latitude + ACTIVE_JOB.destination.latitude) / 2,
         longitude: (nannyLocation.longitude + ACTIVE_JOB.destination.longitude) / 2,
         latitudeDelta: 0.035,
         longitudeDelta: 0.035,
       }
-    : {
+    : ACTIVE_JOB ? {
         latitude: ACTIVE_JOB.destination.latitude,
         longitude: ACTIVE_JOB.destination.longitude,
         latitudeDelta: 0.04,
         longitudeDelta: 0.04,
-      };
+      } : null;
 
   // ── RENDER 
   return (
     <View style={styles.container}>
-
+      {!ACTIVE_JOB ? (
+         <View style={styles.emptyState}>
+            {isLoading ? <ActivityIndicator size="large" color={colors.primary} /> : 
+            <Text style={styles.emptyText}>No Active Journey Found.</Text>}
+         </View>
+      ) : (
+      <>
       {/* ── MAP */}
       {locationError ? (
         <View style={styles.errorBanner}>
@@ -421,14 +466,16 @@ export default function OnTheWayScreen() {
           </View>
         </View>
       </Modal>
-
+      </>)}
     </View>
   );
 }
 
 // ── STYLES ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
+  container: { flex: 1, backgroundColor: colors.background },
+  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyText: { fontFamily: fonts.rubik, fontSize: 16, color: colors.description },
 
   // Map loading / error states
   loadingOverlay: {

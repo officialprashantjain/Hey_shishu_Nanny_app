@@ -5,20 +5,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../../constants/color';
 import { fonts } from '../../../constants/font';
 
-export const RequestCard = ({ data, onAccept, onDecline, onViewDetails }) => {
+export const RequestCard = ({ data, onAccept, onDecline, onViewDetails, headerTitle = 'New Booking Request', subtext = 'Be the first to accept', hideTimer = false }) => {
   if (!data) return null;
 
   return (
     <View style={styles.cardContainer}>
       {/* Header element of card */}
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>New Booking Request</Text>
-        <View style={styles.timerRow}>
-          <Ionicons name="time-outline" size={16} color={colors.error || '#E53935'} />
-          <Text style={styles.timerText}>{data.timeLeft || '20s left'}</Text>
-        </View>
+        <Text style={styles.headerTitle}>{headerTitle}</Text>
+        {!hideTimer && (
+          <View style={styles.timerRow}>
+            <Ionicons name="time-outline" size={16} color={colors.error || '#E53935'} />
+            <Text style={styles.timerText}>{data.timeLeft || '20s left'}</Text>
+          </View>
+        )}
       </View>
-      <Text style={styles.subtext}>Be the first to accept</Text>
+      <Text style={styles.subtext}>{subtext}</Text>
 
       {/* Main card box */}
       <View style={styles.cardInner}>
@@ -60,14 +62,20 @@ export const RequestCard = ({ data, onAccept, onDecline, onViewDetails }) => {
         )}
 
         {/* Action Buttons */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.declineBtn} onPress={onDecline}>
-            <Text style={styles.declineText}>Decline</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.acceptBtn} onPress={onAccept}>
-            <Text style={styles.acceptText}>Accept</Text>
-          </TouchableOpacity>
-        </View>
+        {(onAccept || onDecline) && (
+          <View style={styles.actionRow}>
+            {onDecline && (
+              <TouchableOpacity style={styles.declineBtn} onPress={onDecline}>
+                <Text style={styles.declineText}>Decline</Text>
+              </TouchableOpacity>
+            )}
+            {onAccept && (
+              <TouchableOpacity style={styles.acceptBtn} onPress={onAccept}>
+                <Text style={styles.acceptText}>Accept</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
     </View>
   );

@@ -17,6 +17,7 @@ export default function CustomDrawerContent(props) {
     { label: 'Earnings History', icon: require('../../../assets/icons/drawer-courses.svg'), route: '/(main)/earnings' },
     { label: 'Rating & Reviews', icon: require('../../../assets/icons/drawer-review.svg'), route: '/(main)/ratings' },
     { label: 'Profile', icon: require('../../../assets/icons/drawer-profile.svg'), route: '/(main)/profile' },
+    { label: 'Work Schedule', icon: require('../../../assets/icons/drawer-bookings.svg'), route: '/(main)/work-schedule' },
     { label: 'Log Out', icon: require('../../../assets/icons/drawer-logout.svg'), route: '/(auth)/login' },
   ];
 

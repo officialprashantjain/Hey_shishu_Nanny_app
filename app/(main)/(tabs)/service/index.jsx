@@ -11,26 +11,52 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../../../constants/color';
 import { fonts } from '../../../../constants/font';
 import { useRouter } from 'expo-router';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchOnrunningBookings, completeSessionBooking, selectOnrunningBookings, selectBookingLoading } from '../../../../src/redux/slices/bookingSlice';
+import { useAlert } from '../../../../src/contexts/AlertContext';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useMemo } from 'react';
 
 // ── Dummy Active Context ───────────────────────────────────────────────────
-const ACTIVE_JOB = {
-  id: 'JOB-A12X',
-  childName: 'Aarav Mehta',
-  childAge: '2.5 Years Old',
-  childPhoto: 'https://xsgames.co/randomusers/assets/avatars/male/40.jpg',
-  parentName: 'Sneha Sharma',
-  parentPhoto: 'https://xsgames.co/randomusers/assets/avatars/male/12.jpg',
-  address: 'B-405, Omaxe Heights, Sector 86, Faridabad',
-  distance: '3.5 km',
-  startTime: '10:00 AM',
-  totalHours: '4 Hours',
-  childNotes: 'Aarav might take a short nap in the afternoon. Peanut allergy.',
-  date: 'Today, 12 May 2025',
-  time: '10:00 AM – 2:00 PM',
-};
-
 export default function ServiceScreen() {
   const router = useRouter();
+  
+  const dispatch = useDispatch();
+  const { showAlert } = useAlert();
+  const onrunningBookings = useSelector(selectOnrunningBookings);
+  const isLoading = useSelector(selectBookingLoading);
+
+  useFocusEffect(
+    useCallback(() => {
+      dispatch(fetchOnrunningBookings());
+    }, [dispatch])
+  );
+
+  const ACTIVE_JOB = useMemo(() => {
+    if (!onrunningBookings || onrunningBookings.length === 0) return null;
+    const booking = onrunningBookings[0];
+    const start = new Date(booking.startDateTime);
+    const end = new Date(booking.endDateTime);
+    const totalHours = Math.round((end - start) / (1000 * 60 * 60));
+    
+    return {
+      id: booking._id,
+      childName: booking.childIds?.[0]?.firstName || 'Aarav Mehta',
+      childAge: booking.childIds?.[0]?.age ? `${booking.childIds[0].age} Years Old` : '2.5 Years Old',
+      childPhoto: require('../../../../assets/icons/nanny-image.svg'),
+      parentName: booking.parentId?.fullName || 'Sneha Sharma',
+      parentPhoto: require('../../../../assets/icons/nanny-image.svg'),
+      address: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`,
+      distance: '1.8 km',
+      startTime: start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' }),
+      totalHours: `${totalHours} Hours`,
+      childNotes: booking.parentNotes || '',
+      date: start.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+      time: `${start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })} – ${end.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })}`,
+      startDateTime: booking.startDateTime,
+      endDateTime: booking.endDateTime,
+    };
+  }, [onrunningBookings]);
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [micPermissionGranted, setMicPermissionGranted] = useState(false);
@@ -52,15 +78,21 @@ export default function ServiceScreen() {
   // ── Timers & Animations ──────────────────────────────────────────────────
   useEffect(() => {
     const timerInterval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) return 120; // Loop back to 2 minutes
-        return prev - 1;
-      });
-      setElapsed((prev) => prev + 1);
+      if (ACTIVE_JOB) {
+        const startTimestamp = new Date(ACTIVE_JOB.startDateTime).getTime();
+        const endTimestamp = new Date(ACTIVE_JOB.endDateTime).getTime();
+        const now = Date.now();
+        
+        const elapsedSec = Math.max(0, Math.floor((now - startTimestamp) / 1000));
+        const remSec = Math.max(0, Math.floor((endTimestamp - now) / 1000));
+        
+        setElapsed(elapsedSec);
+        setTimeLeft(remSec);
+      }
     }, 1000);
 
     return () => clearInterval(timerInterval);
-  }, []);
+  }, [ACTIVE_JOB]);
 
   useEffect(() => {
     let waveInterval;
@@ -87,8 +119,10 @@ export default function ServiceScreen() {
   }, [isRecording]);
 
   const formatTime = (totalSeconds) => {
-    const m = Math.floor(totalSeconds / 60);
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
     const s = totalSeconds % 60;
+    if (h > 0) return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
@@ -104,12 +138,8 @@ export default function ServiceScreen() {
     (async () => {
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          'Microphone Permission Required',
-          'This service strictly requires audio monitoring for safety. Please enable microphone access in settings.',
-          [{ text: 'OK' }]
-        );
         setMicPermissionGranted(false);
+        setIsRecording(false);
       } else {
         setMicPermissionGranted(true);
       }
@@ -118,7 +148,7 @@ export default function ServiceScreen() {
 
   const toggleRecording = () => {
     if (!micPermissionGranted) {
-      Alert.alert('Permission Denied', 'Microphone access is not granted.');
+      showAlert('Permission Denied', 'Microphone access is not granted.');
       return;
     }
     setIsRecording(!isRecording);
@@ -140,16 +170,27 @@ export default function ServiceScreen() {
     }
   };
 
-  const handleCompleteService = () => {
+  const handleCompleteService = async () => {
     const enteredOtp = otp.join('');
     if (enteredOtp.length < 4) {
-      Alert.alert('Incomplete OTP', 'Please enter the 4-digit completion code provided by the parent.');
+      showAlert('Incomplete OTP', 'Please enter the 4-digit completion code provided by the parent.');
       return;
     }
-    setShowOtpModal(false);
-    setOtp(['', '', '', '']);
-    // On success, show custom success modal instead of system alert
-    setShowSuccessModal(true);
+    
+    if (!ACTIVE_JOB) return;
+    
+    try {
+      const resultAction = await dispatch(completeSessionBooking({ id: ACTIVE_JOB.id, otp: enteredOtp }));
+      if (completeSessionBooking.fulfilled.match(resultAction)) {
+          setShowOtpModal(false);
+          setOtp(['', '', '', '']);
+          setShowSuccessModal(true);
+      } else {
+          showAlert('Error', resultAction.payload || 'Incorrect completion OTP');
+      }
+    } catch(e) {
+      showAlert('Error', 'Unexpected error finalizing service.');
+    }
   };
 
   // ── Helper to render sound waves visually ─────────────────────────────────
@@ -171,6 +212,12 @@ export default function ServiceScreen() {
 
   return (
     <View style={styles.container}>
+      {!ACTIVE_JOB ? (
+         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <Text style={{ fontFamily: fonts.rubik, color: colors.description }}>No Active Service Running.</Text>
+         </View>
+      ) : (
+      <>
       <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
         
         {/* ── TOP CARD: Child Info ────────────────────────────────────────── */}
@@ -261,7 +308,7 @@ export default function ServiceScreen() {
         {/* ── NOTE FROM PARENT ───────────────────────────────────────────── */}
         <View style={styles.noteCard}>
           <Text style={styles.noteTitle}>Note from Parent</Text>
-          <Text style={styles.noteText}>{ACTIVE_JOB.parentNote}</Text>
+          <Text style={styles.noteText}>{ACTIVE_JOB.childNotes}</Text>
         </View>
 
         {/* ── SERVICE COMPLETED TRIGGER ──────────────────────────────────── */}
@@ -420,6 +467,7 @@ export default function ServiceScreen() {
         </View>
       </Modal>
 
+      </>)}
     </View>
   );
 }

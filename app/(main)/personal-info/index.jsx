@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,61 +7,87 @@ import {
   ScrollView,
   TextInput,
   Platform,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomImage as Image } from "../../../src/components/common/CustomImage";
 import { useRouter } from "expo-router";
+import { useDispatch, useSelector } from "react-redux";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
+import {
+  selectProfile,
+  selectProfileSaving,
+  updateProfileStart,
+  updateProfileSuccess,
+  updateProfileFailure,
+} from "../../../src/redux/slices/profileSlice";
+import { updateMyProfile } from "../../../src/services/nannyService";
+import { selectUser } from "../../../src/redux/slices/authSlice";
 
-const AVAILABLE_AGES = ["Baby (0-12 mos)", "Toddler (1-3 yrs)", "Preschooler (3-5 yrs)", "School age (5+ yrs)"];
-const AVAILABLE_SKILLS = ["Conflict resolution", "Homework Assistance", "First aid and CPR Training", "Potty Training", "Special Needs"];
+// ── Backend enum values ────────────────────────────────────────────────────────
+const AGE_OPTIONS = [
+  { label: "Infant (0-12 mos)", value: "infant" },
+  { label: "Toddler (1-3 yrs)", value: "toddler" },
+  { label: "School Age (5+)", value: "school_age" },
+  { label: "Teenager", value: "teenager" },
+];
+const SKILL_OPTIONS = [
+  { label: "First Aid", value: "first_aid" },
+  { label: "Cooking", value: "cooking" },
+  { label: "Teaching", value: "teaching" },
+  { label: "Special Needs", value: "special_needs" },
+  { label: "Newborn Care", value: "newborn_care" },
+  { label: "Other", value: "other" },
+];
 
 export default function PersonalInfoScreen() {
   const router = useRouter();
-  
-  // Basic Info
-  const [fullName, setFullName] = useState("Jessica Miller");
-  const [email, setEmail] = useState("jessica@example.com");
-  const [phone, setPhone] = useState("9876543210");
-  const [dob, setDob] = useState("12 Sep 1992");
-  const [gender, setGender] = useState("Female");
-  
-  // Bio
-  const [aboutMe, setAboutMe] = useState("I've been caring for babies for over 4 years and have plenty of experience with little ones. Since I work from home, I'm available throughout the day, making it easy for me to support your family's needs. If you have any questions, feel free to reach out! 😊");
+  const dispatch = useDispatch();
+  const profile = useSelector(selectProfile);
+  const user = useSelector(selectUser);     // { fullName, email, phoneNumber }
+  const isSaving = useSelector(selectProfileSaving);
 
-  // Service Details
-  const [serviceType, setServiceType] = useState("Babysitting At your home");
-  const [hourlyRate, setHourlyRate] = useState("30");
-  const [selectedAges, setSelectedAges] = useState(["Baby (0-12 mos)", "Toddler (1-3 yrs)"]);
-  
-  // Professional Details
-  const [location, setLocation] = useState("Mumbai, India");
-  const [experience, setExperience] = useState("4+ years");
-  const [degree, setDegree] = useState("Teacher degree");
-  const [selectedSkills, setSelectedSkills] = useState(["Conflict resolution", "Homework Assistance", "First aid and CPR Training"]);
+  // ── Editable fields (from NannyProfile) ──────────────────────────────────────
+  const [bio, setBio] = useState("");
+  const [experience, setExperience] = useState("");
+  const [hourlyRate, setHourlyRate] = useState("");
+  const [monthlyRate, setMonthlyRate] = useState("");
+  const [selectedAges, setSelectedAges] = useState([]);
+  const [selectedSkills, setSelectedSkills] = useState([]);
+  const [isAvailableForWork, setIsAvailableForWork] = useState(false);
 
-  const toggleSelection = (item, list, setList) => {
-    if (list.includes(item)) {
-      setList(list.filter(i => i !== item));
-    } else {
-      setList([...list, item]);
+  // ── Populate form from Redux when profile loads ───────────────────────────────
+  useEffect(() => {
+    if (profile) {
+      setBio(profile.bio || "");
+      setExperience(String(profile.experience ?? ""));
+      setHourlyRate(String(profile.hourlyRate ?? ""));
+      setMonthlyRate(String(profile.monthlyRate ?? ""));
+      setSelectedAges(profile.ageGroupSpecialty || []);
+      setSelectedSkills(profile.skills || []);
+      setIsAvailableForWork(profile.isAvailableForWork || false);
     }
+  }, [profile]);
+
+  const toggleChip = (value, list, setList) => {
+    setList(list.includes(value) ? list.filter((i) => i !== value) : [...list, value]);
   };
 
   const renderChipGroup = (options, selectedList, setList) => (
     <View style={styles.chipContainer}>
-      {options.map((option) => {
-        const isSelected = selectedList.includes(option);
+      {options.map((opt) => {
+        const isSelected = selectedList.includes(opt.value);
         return (
           <TouchableOpacity
-            key={option}
+            key={opt.value}
             style={[styles.chip, isSelected && styles.chipSelected]}
-            onPress={() => toggleSelection(option, selectedList, setList)}
+            onPress={() => toggleChip(opt.value, selectedList, setList)}
           >
             <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-              {option}
+              {opt.label}
             </Text>
           </TouchableOpacity>
         );
@@ -69,10 +95,37 @@ export default function PersonalInfoScreen() {
     </View>
   );
 
+  // ── Save → PATCH /nanny/profile ───────────────────────────────────────────────
+  const handleSave = async () => {
+    dispatch(updateProfileStart());
+    try {
+      const payload = {
+        bio,
+        experience: Number(experience) || 0,
+        hourlyRate: Number(hourlyRate) || 0,
+        monthlyRate: Number(monthlyRate) || 0,
+        ageGroupSpecialty: selectedAges,
+        skills: selectedSkills,
+        isAvailableForWork,
+      };
+      const response = await updateMyProfile(payload);
+      dispatch(updateProfileSuccess(response.data?.profile ?? payload));
+      Alert.alert("Saved ✅", "Your profile has been updated successfully.");
+      router.replace("/(main)/profile");
+    } catch (error) {
+      const msg =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        "Could not save changes. Please try again.";
+      dispatch(updateProfileFailure(msg));
+      Alert.alert("Error", msg);
+    }
+  };
+
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <SafeAreaView edges={["top"]} style={{ backgroundColor: colors.white }}>
         <View style={styles.header}>
@@ -86,7 +139,7 @@ export default function PersonalInfoScreen() {
               contentFit="contain"
             />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Profile details</Text>
+          <Text style={styles.headerTitle}>Edit Profile Details</Text>
         </View>
       </SafeAreaView>
 
@@ -95,142 +148,160 @@ export default function PersonalInfoScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {/* --- 1. Basic Details --- */}
+        {/* ── 1. Basic Details (Read-only from auth) ─────────────────────────── */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Basic Details</Text>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput style={styles.input} value={fullName} onChangeText={setFullName} />
-          </View>
+          <Text style={styles.readOnlyNote}>ℹ️ These details cannot be edited</Text>
 
-          <View style={styles.rowInputs}>
-            <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
-              <Text style={styles.label}>Date of Birth</Text>
-              <TextInput style={styles.input} value={dob} onChangeText={setDob} placeholder="DD MMM YYYY" />
-            </View>
-            <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>Gender</Text>
-              <TextInput style={styles.input} value={gender} onChangeText={setGender} />
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address</Text>
-            <View style={styles.inputWithIcon}>
-              <Image source={require("../../../assets/icons/mail.svg")} style={styles.inputIcon} tintColor="#9CA3AF" />
-              <TextInput
-                style={styles.inputIconInput}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-              />
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Phone Number</Text>
-            <View style={styles.phoneInputContainer}>
-              <View style={styles.countryCodeBox}>
-                <Image source={require("../../../assets/icons/india.svg")} style={styles.countryFlag} />
-                <Text style={styles.countryCodeText}>+91</Text>
-              </View>
-              <TextInput
-                style={styles.phoneInput}
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
-            </View>
-          </View>
+          <ReadOnlyField label="Full Name" value={user?.fullName || "—"} />
+          <ReadOnlyField label="Email Address" value={user?.email || "—"} />
+          <ReadOnlyField label="Phone Number" value={profile?.traineeApplicationId?.phoneNumber || "—"} />
         </View>
 
-        {/* --- 2. About Me --- */}
+        {/* ── 2. About Me ─────────────────────────────────────────────────────── */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>About Me</Text>
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Bio</Text>
             <TextInput
               style={styles.textArea}
-              value={aboutMe}
-              onChangeText={setAboutMe}
+              value={bio}
+              onChangeText={setBio}
               multiline
               numberOfLines={6}
               textAlignVertical="top"
-            />
-          </View>
-        </View>
-
-        {/* --- 3. Service Details --- */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Service Details</Text>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Service Provided</Text>
-            <TextInput style={styles.input} value={serviceType} onChangeText={setServiceType} />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>General Rate (₹/hour)</Text>
-            <TextInput 
-              style={styles.input} 
-              value={hourlyRate} 
-              onChangeText={setHourlyRate} 
-              keyboardType="numeric" 
+              placeholder="Tell parents about yourself..."
+              placeholderTextColor="#9CA3AF"
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Ages of Babies (Select multiple)</Text>
-            {renderChipGroup(AVAILABLE_AGES, selectedAges, setSelectedAges)}
+            <Text style={styles.label}>Experience (years)</Text>
+            <TextInput
+              style={styles.input}
+              value={experience}
+              onChangeText={setExperience}
+              keyboardType="numeric"
+              placeholder="e.g. 4"
+              placeholderTextColor="#9CA3AF"
+            />
           </View>
         </View>
 
-        {/* --- 4. Professional & Skills --- */}
+        {/* ── 3. Rates ────────────────────────────────────────────────────────── */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Professional & Skills</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Location</Text>
-            <TextInput style={styles.input} value={location} onChangeText={setLocation} />
-          </View>
+          <Text style={styles.sectionTitle}>Rates</Text>
 
           <View style={styles.rowInputs}>
             <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
-              <Text style={styles.label}>Experience</Text>
-              <TextInput style={styles.input} value={experience} onChangeText={setExperience} />
+              <Text style={styles.label}>Hourly Rate (₹)</Text>
+              <TextInput
+                style={styles.input}
+                value={hourlyRate}
+                onChangeText={setHourlyRate}
+                keyboardType="numeric"
+                placeholder="200"
+                placeholderTextColor="#9CA3AF"
+              />
             </View>
             <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>Degree</Text>
-              <TextInput style={styles.input} value={degree} onChangeText={setDegree} />
+              <Text style={styles.label}>Monthly Rate (₹)</Text>
+              <TextInput
+                style={styles.input}
+                value={monthlyRate}
+                onChangeText={setMonthlyRate}
+                keyboardType="numeric"
+                placeholder="18000"
+                placeholderTextColor="#9CA3AF"
+              />
             </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Caregiver Skills (Select multiple)</Text>
-            {renderChipGroup(AVAILABLE_SKILLS, selectedSkills, setSelectedSkills)}
           </View>
         </View>
 
+        {/* ── 4. Stats (Read-only) ─────────────────────────────────────────────── */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Stats</Text>
+          <View style={styles.statsRow}>
+            <StatBox label="Avg Rating" value={profile?.averageRating?.toFixed(1) ?? "0.0"} emoji="⭐" />
+            <StatBox label="Total Reviews" value={String(profile?.totalReviews ?? 0)} emoji="💬" />
+            <StatBox label="Verification" value={profile?.verificationStatus ?? "pending"} emoji="🔖" />
+          </View>
+        </View>
+
+        {/* ── 5. Availability Toggle ───────────────────────────────────────────── */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Availability</Text>
+          <TouchableOpacity
+            style={[styles.availToggle, isAvailableForWork && styles.availToggleActive]}
+            onPress={() => setIsAvailableForWork(!isAvailableForWork)}
+          >
+            <Text style={[styles.availToggleText, isAvailableForWork && styles.availToggleTextActive]}>
+              {isAvailableForWork ? "✅  Available for Work" : "❌  Not Available"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── 6. Age Group Specialty ───────────────────────────────────────────── */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Age Group Specialty</Text>
+          <View style={styles.inputGroup}>
+            {renderChipGroup(AGE_OPTIONS, selectedAges, setSelectedAges)}
+          </View>
+        </View>
+
+        {/* ── 7. Skills ────────────────────────────────────────────────────────── */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Caregiver Skills</Text>
+          <View style={styles.inputGroup}>
+            {renderChipGroup(SKILL_OPTIONS, selectedSkills, setSelectedSkills)}
+          </View>
+        </View>
       </ScrollView>
 
+      {/* ── Footer Save Button ───────────────────────────────────────────────── */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={styles.saveBtn}
-          onPress={() => router.replace("/(main)/profile")}
+          style={[styles.saveBtn, isSaving && { opacity: 0.7 }]}
+          onPress={handleSave}
+          disabled={isSaving}
         >
-          <Text style={styles.saveBtnText}>Save Changes</Text>
+          {isSaving ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.saveBtnText}>Save Changes</Text>
+          )}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
+// ── Helper Components ──────────────────────────────────────────────────────────
+function ReadOnlyField({ label, value }) {
+  return (
+    <View style={styles.inputGroup}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.readOnlyInput}>
+        <Text style={styles.readOnlyText}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+function StatBox({ label, value, emoji }) {
+  return (
+    <View style={styles.statBox}>
+      <Text style={styles.statEmoji}>{emoji}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -239,26 +310,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
   },
-  backButton: {
-    padding: 5,
-    marginRight: 10,
-    justifyContent: "center",
-  },
-  backIcon: {
-    width: 14,
-    height: 14,
-    tintColor: colors.description,
-  },
-  headerTitle: {
-    fontFamily: fonts.rubikBold,
-    fontSize: 20,
-    color: colors.description,
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 120, // space for fixed footer
-  },
+  backButton: { padding: 5, marginRight: 10, justifyContent: "center" },
+  backIcon: { width: 14, height: 14, tintColor: colors.description },
+  headerTitle: { fontFamily: fonts.rubikBold, fontSize: 20, color: colors.description, flex: 1 },
+  scrollContent: { padding: 20, paddingBottom: 120 },
   sectionCard: {
     backgroundColor: colors.white,
     borderRadius: 24,
@@ -270,25 +325,11 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 2,
   },
-  sectionTitle: {
-    fontFamily: fonts.chocoShake,
-    fontSize: 22,
-    color: colors.primary,
-    marginBottom: 20,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  rowInputs: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  label: {
-    fontFamily: fonts.rubikBold,
-    fontSize: 13,
-    color: colors.description,
-    marginBottom: 8,
-  },
+  sectionTitle: { fontFamily: fonts.chocoShake, fontSize: 22, color: colors.primary, marginBottom: 6 },
+  readOnlyNote: { fontFamily: fonts.rubik, fontSize: 12, color: "#9CA3AF", marginBottom: 16 },
+  inputGroup: { marginBottom: 16 },
+  rowInputs: { flexDirection: "row", justifyContent: "space-between" },
+  label: { fontFamily: fonts.rubikBold, fontSize: 13, color: colors.description, marginBottom: 8 },
   input: {
     backgroundColor: colors.lightGray,
     borderWidth: 1,
@@ -310,95 +351,49 @@ const styles = StyleSheet.create({
     color: colors.description,
     minHeight: 120,
   },
-  inputWithIcon: {
-    backgroundColor: colors.lightGray,
+  readOnlyInput: {
+    backgroundColor: "#F3F4F6",
     borderWidth: 1,
     borderColor: "#E5E7EB",
     borderRadius: 12,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    height: 50,
+    padding: 14,
   },
-  inputIcon: {
-    width: 20,
-    height: 20,
-    marginRight: 10,
-  },
-  inputIconInput: {
-    flex: 1,
-    fontFamily: fonts.rubik,
-    fontSize: 15,
-    color: colors.description,
-    height: '100%',
-  },
-  phoneInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 50,
-  },
-  countryCodeBox: {
-    backgroundColor: colors.lightGray,
+  readOnlyText: { fontFamily: fonts.rubik, fontSize: 15, color: "#9CA3AF" },
+  // Stats
+  statsRow: { flexDirection: "row", justifyContent: "space-around", marginTop: 8 },
+  statBox: { alignItems: "center", flex: 1 },
+  statEmoji: { fontSize: 24, marginBottom: 4 },
+  statValue: { fontFamily: fonts.rubikBold, fontSize: 18, color: colors.primary },
+  statLabel: { fontFamily: fonts.rubik, fontSize: 12, color: colors.description, marginTop: 2 },
+  // Availability
+  availToggle: {
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    flexDirection: "row",
+    borderColor: "#D1D5DB",
+    borderRadius: 16,
+    padding: 16,
     alignItems: "center",
-    marginRight: 10,
-    height: '100%',
+    backgroundColor: "#F9FAFB",
   },
-  countryFlag: {
-    width: 22,
-    height: 22,
-    marginRight: 6,
+  availToggleActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + "15",
   },
-  countryCodeText: {
-    fontFamily: fonts.rubik,
-    fontSize: 15,
-    color: colors.description,
-  },
-  phoneInput: {
-    flex: 1,
-    backgroundColor: colors.lightGray,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    fontFamily: fonts.rubik,
-    fontSize: 15,
-    color: colors.description,
-    height: '100%',
-  },
-  
+  availToggleText: { fontFamily: fonts.rubikBold, fontSize: 15, color: "#9CA3AF" },
+  availToggleTextActive: { color: colors.primary },
   // Chips
-  chipContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  chipContainer: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    backgroundColor: '#FFFFFF',
+    borderColor: "#D1D5DB",
+    backgroundColor: "#FFFFFF",
     borderRadius: 20,
     paddingVertical: 8,
     paddingHorizontal: 14,
   },
-  chipSelected: {
-    backgroundColor: colors.primary + '15',
-    borderColor: colors.primary,
-  },
-  chipText: {
-    fontFamily: fonts.rubik,
-    fontSize: 13,
-    color: colors.description,
-  },
-  chipTextSelected: {
-    fontFamily: fonts.rubikBold,
-    color: colors.primary,
-  },
-
+  chipSelected: { backgroundColor: colors.primary + "15", borderColor: colors.primary },
+  chipText: { fontFamily: fonts.rubik, fontSize: 13, color: colors.description },
+  chipTextSelected: { fontFamily: fonts.rubikBold, color: colors.primary },
+  // Footer
   footer: {
     position: "absolute",
     bottom: 0,
@@ -406,7 +401,7 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: colors.background,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: "#E2E8F0",
   },
   saveBtn: {
     backgroundColor: colors.secondary,
@@ -414,9 +409,5 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: "center",
   },
-  saveBtnText: {
-    fontFamily: fonts.rubikBold,
-    fontSize: 16,
-    color: colors.white,
-  },
+  saveBtnText: { fontFamily: fonts.rubikBold, fontSize: 16, color: colors.white },
 });

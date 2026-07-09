@@ -1,57 +1,79 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Text, Modal, TouchableOpacity } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, StyleSheet, ScrollView, Text, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { colors } from '../../../../constants/color';
 import { fonts } from '../../../../constants/font';
 import { useRouter } from 'expo-router';
 import { UpcomingBookingCard } from '../../../../src/components/features/UpcomingBookingCard';
 import { CustomButton } from '../../../../src/components/common/CustomButton';
 import { Ionicons } from '@expo/vector-icons';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchConfirmedBookings, startBooking, selectConfirmedBookings, selectBookingLoading } from '../../../../src/redux/slices/bookingSlice';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAlert } from '../../../../src/contexts/AlertContext';
 
 export default function UpcomingBookingScreen() {
   const router = useRouter();
+  const dispatch = useDispatch();
+  const { showAlert } = useAlert();
+  
+  const confirmedBookings = useSelector(selectConfirmedBookings);
+  const isLoading = useSelector(selectBookingLoading);
+
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [pendingBookingId, setPendingBookingId] = useState(null);
 
-  // Expanded dummy data to showcase multiple accepted bookings scalability
-  const [acceptedBookings] = useState([
-    {
-      id: "JOB-A12X",
-      parentName: "Sneha Sharma",
-      parentPhoto: "https://xsgames.co/randomusers/assets/avatars/female/2.jpg",
-      address: "B-405, Omaxe Heights, Sector 86, Faridabad",
-      distance: "3.5 km",
-      childName: "Aarav Mehta",
-      childAge: "2.5 Years Old",
-      childPhoto:   "https://plus.unsplash.com/premium_photo-1667480556784-a8f27e62104c?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-      childNotes: "Aarav loves story time and outdoor play. Peanut allergy.",
-      date: "Today, 12 May 2025",
-      time: "10:00 AM – 2:00 PM"
-    },
-    {
-      id: "JOB-B49Y",
-      parentName: "Rakesh Verma",
-      parentPhoto: "https://xsgames.co/randomusers/assets/avatars/male/12.jpg",
-      address: "Villa 34, DLF Phase 2, Gurugram",
-      distance: "6.2 km",
-      childName: "Kiara Verma",
-      childAge: "1.5 Years Old",
-      childPhoto:  "https://plus.unsplash.com/premium_photo-1667480556784-a8f27e62104c?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-      childNotes: "Please ensure her nap time is strictly between 1 PM and 3 PM.",
-      date: "Tomorrow, 13 May 2025",
-      time: "12:00 PM – 6:00 PM"
-    }
-  ]);
+  useFocusEffect(
+    useCallback(() => {
+      dispatch(fetchConfirmedBookings());
+    }, [dispatch])
+  );
 
   const handleStartJourneyClick = (bookingId) => {
     setPendingBookingId(bookingId);
     setShowLocationModal(true);
   };
 
-  const confirmStartJourney = () => {
+  const confirmStartJourney = async () => {
     setShowLocationModal(false);
     console.log("Starting journey for booking:", pendingBookingId);
-    // Move to Tab 3 for Active Location Session tracking
-    router.push('/(main)/(tabs)/ontheway');
+    try {
+      const resultAction = await dispatch(startBooking(pendingBookingId));
+      if (startBooking.fulfilled.match(resultAction)) {
+        // Move to Tab 3 for Active Location Session tracking
+        router.push('/(main)/(tabs)/ontheway');
+      } else {
+        showAlert('Error', resultAction.payload || 'Failed to start journey');
+      }
+    } catch (e) {
+      showAlert('Error', 'Unexpected error occurred while starting journey');
+    }
+  };
+
+  const mapBookingToCard = (booking) => {
+    const start = new Date(booking.startDateTime);
+    const end = new Date(booking.endDateTime);
+    const dateStr = start.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+    
+    // Format AM/PM time
+    const startTimeStr = start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' });
+    const endTimeStr = end.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' });
+    
+    return {
+      id: booking._id,
+      childName: booking.childIds?.[0]?.firstName || 'Aarav Mehta',
+      childAge: booking.childIds?.[0]?.age ? `${booking.childIds[0].age} Years Old` : '2.5 Years Old',
+      date: dateStr,
+      time: `${startTimeStr} – ${endTimeStr}`,
+      address: `${booking.address?.area || 'Sector 45'}, ${booking.address?.city || 'Noida'}`,
+      distance: '1.8 km', 
+      childNotes: booking.parentNotes || '',
+      childPhoto: require('../../../../assets/icons/nanny-image.svg'), // Using fallback image that exists
+      parentPhoto: require('../../../../assets/icons/nanny-image.svg'), // Using dummy fallback
+      
+      fullAddress: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`,
+      parentName: booking.parentId?.fullName || 'Sneha Sharma',
+      parentPhone: booking.contactNumber || booking.parentId?.phoneNumber || '',
+    };
   };
 
   const handleMessageParent = (parentName) => {
@@ -65,21 +87,21 @@ export default function UpcomingBookingScreen() {
     router.push('/(main)/messages/incoming_call');
   };
 
-  const handleViewDetails = (booking) => {
+  const handleViewDetails = (mappedBooking) => {
     router.push({
       pathname: '/(main)/booking-details',
       params: {
-        id: booking.id,
-        parentName: booking.parentName,
-        parentPhoto: booking.parentPhoto,
-        address: booking.address,
-        distance: booking.distance,
-        childName: booking.childName,
-        childAge: booking.childAge,
-        childPhoto: booking.childPhoto,
-        childNotes: booking.childNotes,
-        date: booking.date,
-        time: booking.time,
+        id: mappedBooking.id,
+        parentName: mappedBooking.parentName,
+        parentPhoto: 'https://xsgames.co/randomusers/assets/avatars/male/12.jpg',
+        address: mappedBooking.fullAddress,
+        distance: mappedBooking.distance,
+        childName: mappedBooking.childName,
+        childAge: mappedBooking.childAge,
+        childPhoto: 'https://xsgames.co/randomusers/assets/avatars/male/40.jpg',
+        childNotes: mappedBooking.childNotes,
+        date: mappedBooking.date,
+        time: mappedBooking.time,
       }
     });
   };
@@ -89,20 +111,29 @@ export default function UpcomingBookingScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       
       <View style={styles.pageHeader}>
-        <Text style={styles.pageTitle}>Upcoming Sessions ({acceptedBookings.length})</Text>
+        <Text style={styles.pageTitle}>Upcoming Sessions ({confirmedBookings.length})</Text>
         <Text style={styles.pageSubtitle}>Select a booking to start your journey.</Text>
       </View>
 
-      {acceptedBookings.map((booking) => (
-        <UpcomingBookingCard 
-          key={booking.id} 
-          data={booking} 
-          onStartJourney={() => handleStartJourneyClick(booking.id)} 
-          onMessage={() => handleMessageParent(booking.parentName)}
-          onCall={() => handleCallParent(booking.parentName)}
-          onViewDetails={() => handleViewDetails(booking)}
-        />
-      ))}
+      {isLoading && confirmedBookings.length === 0 ? (
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
+      ) : confirmedBookings.length === 0 ? (
+        <Text style={{ ...styles.pageSubtitle, textAlign: 'center', marginTop: 20 }}>No upcoming bookings scheduled.</Text>
+      ) : (
+        confirmedBookings.map((booking) => {
+          const mapped = mapBookingToCard(booking);
+          return (
+            <UpcomingBookingCard 
+              key={mapped.id} 
+              data={mapped} 
+              onStartJourney={() => handleStartJourneyClick(mapped.id)} 
+              onMessage={() => handleMessageParent(mapped.parentName)}
+              onCall={() => handleCallParent(mapped.parentName)}
+              onViewDetails={() => handleViewDetails(mapped)}
+            />
+          );
+        })
+      )}
 
       <View style={{ height: 100 }} />
     </ScrollView>

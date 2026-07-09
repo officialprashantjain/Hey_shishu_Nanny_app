@@ -11,7 +11,7 @@ export const UpcomingBookingCard = ({ data, onStartJourney, onMessage, onCall, o
   return (
     <View style={styles.card}>
       <View style={styles.cardHeaderRow}>
-        <Text style={styles.cardSectionTitle}>Booking: {data.id}</Text>
+        <Text style={styles.cardSectionTitle}>Booking</Text>
         <TouchableOpacity style={styles.detailsBtn} onPress={onViewDetails}>
           <Text style={styles.detailsText}>Details</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.primary} />

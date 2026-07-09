@@ -12,14 +12,25 @@ import { CustomImage as Image } from "../../../src/components/common/CustomImage
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
+import { useDispatch, useSelector } from "react-redux";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
+import { selectUser } from "../../../src/redux/slices/authSlice";
+import { selectProfile } from "../../../src/redux/slices/profileSlice";
+import { logoutNanny } from "../../../src/services/authServices";
+import { useAlert } from "../../../src/contexts/AlertContext";
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const dispatch = useDispatch();
+  const { showAlert } = useAlert();
+  const user = useSelector(selectUser);
+  const profile = useSelector(selectProfile);
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
   const [isPhotoModalVisible, setIsPhotoModalVisible] = useState(false);
   const [profilePicUri, setProfilePicUri] = useState(null);
+
+  const averageRating = profile?.averageRating ?? 0;
 
   const menuOptions = [
     {
@@ -69,7 +80,7 @@ export default function ProfileScreen() {
     setIsPhotoModalVisible(false);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      alert('Sorry, we need camera roll permissions to make this work!');
+      showAlert('Permission Denied', 'Sorry, we need camera roll permissions to make this work!');
       return;
     }
 
@@ -89,7 +100,7 @@ export default function ProfileScreen() {
     setIsPhotoModalVisible(false);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      alert('Sorry, we need camera permissions to make this work!');
+      showAlert('Permission Denied', 'Sorry, we need camera permissions to make this work!');
       return;
     }
 
@@ -147,18 +158,22 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>Jessica Miller</Text>
-            <Text style={styles.userPhone}>+91 9876543210</Text>
+            <Text style={styles.userName}>{user?.fullName || "Nanny"}</Text>
+            <Text style={styles.userPhone}>
+              {profile?.traineeApplicationId?.phoneNumber
+                ? `+91 ${profile.traineeApplicationId.phoneNumber}`
+                : user?.email || ""}
+            </Text>
 
             <View style={styles.ratingContainer}>
               {[1, 2, 3, 4, 5].map((i) => (
                 <Image
                   key={i}
                   source={require("../../../assets/icons/review-star.svg")}
-                  style={[styles.starIcon, i > 4 && { opacity: 0.3 }]}
+                  style={[styles.starIcon, i > Math.round(averageRating) && { opacity: 0.25 }]}
                 />
               ))}
-              <Text style={styles.ratingText}>4.9</Text>
+              <Text style={styles.ratingText}>{averageRating.toFixed(1)}</Text>
             </View>
           </View>
         </View>
@@ -240,7 +255,9 @@ export default function ProfileScreen() {
                 style={styles.logoutBtn}
                 onPress={() => {
                   setIsLogoutModalVisible(false);
-                  router.push("/(onboarding)/splash-screen");
+                  dispatch(logoutNanny()).then(() => {
+                    router.replace("/(onboarding)/splash-screen");
+                  });
                 }}
               >
                 <Text style={styles.logoutBtnText}>Yes, Logout</Text>

@@ -66,6 +66,10 @@ export default function MainLayout() {
         name="booking-details/index" 
         options={{ drawerItemStyle: { display: 'none' } }} 
       />
+      <Drawer.Screen 
+        name="work-schedule/index" 
+        options={{ drawerItemStyle: { display: 'none' }, headerTitle: 'Work Schedule' }} 
+      />
     </Drawer>
   );
 }

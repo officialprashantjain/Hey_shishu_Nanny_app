@@ -39,9 +39,13 @@
       "expo-router",
       "expo-audio",
       "expo-video",
-      ["expo-location", {
-    "locationAlwaysAndWhenInUsePermission": "This app needs location access to track your journey."
-  }]
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "This app needs location access to track your journey."
+        }
+      ],
+      "expo-secure-store"
     ]
   }
 }
