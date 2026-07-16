@@ -65,26 +65,29 @@ export default function RequestsScreen() {
   const mapBookingToCard = (booking) => {
     const start = new Date(booking.startDateTime);
     const end = new Date(booking.endDateTime);
-    const dateStr = start.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+    const startDateStr = start.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+    const endDateStr = end.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+    const finalDateStr = startDateStr === endDateStr ? startDateStr : `${startDateStr} - ${endDateStr}`;
     
     // Format AM/PM time
     const startTimeStr = start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' });
     const endTimeStr = end.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' });
     
     // Calculate duration
-    let diffHours = Math.abs(end - start) / 36e5;
-    diffHours = diffHours % 1 === 0 ? diffHours : diffHours.toFixed(1);
+    let diffHours = booking.totalSlotHours || (Math.abs(end - start) / 36e5);
+    diffHours = diffHours % 1 === 0 ? diffHours : Number(diffHours).toFixed(1);
     
     return {
       id: booking._id,
       childName: booking.childIds?.[0]?.firstName || 'Aarav Mehta',
       age: booking.childIds?.[0]?.age ? `${booking.childIds[0].age} Years Old` : '2.5 Years Old',
       type: booking.bookingType || 'hourly',
-      date: dateStr,
+      date: finalDateStr,
       time: `${startTimeStr} – ${endTimeStr}`,
       duration: `${diffHours} Hours`,
       location: `${booking.address?.area || 'Sector 45'}, ${booking.address?.city || 'Noida'}`,
       distance: '1.8 km', 
+      totalAmount: booking.totalAmount != null ? `₹${booking.totalAmount}` : null,
       notes: booking.parentNotes || '',
       photo: require('../../../../assets/icons/nanny-image.svg'), // Using fallback image that exists
       

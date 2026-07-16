@@ -113,10 +113,14 @@ export default function Leave() {
 
   //------------------- Calendar Logic -------------------//
   const formatDateObj = (dateInstance) => {
-    const isoDate = dateInstance.toISOString().split('T')[0];
+    const year = dateInstance.getFullYear();
+    const month = String(dateInstance.getMonth() + 1).padStart(2, '0');
+    const day = String(dateInstance.getDate()).padStart(2, '0');
+    const localIsoDate = `${year}-${month}-${day}`;
+    
     const options = { month: 'short', day: 'numeric', year: 'numeric' };
     const displayDate = dateInstance.toLocaleDateString('en-US', options);
-    return { value: isoDate, label: displayDate };
+    return { value: localIsoDate, label: displayDate };
   };
 
   const openCalendar = (type) => {
@@ -134,8 +138,9 @@ export default function Leave() {
   const isPastDate = (dateInstance) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    dateInstance.setHours(0, 0, 0, 0);
-    return dateInstance < today;
+    const tempDate = new Date(dateInstance);
+    tempDate.setHours(0, 0, 0, 0);
+    return tempDate.getTime() < today.getTime();
   };
 
   const handleDateSelect = (dateInstance) => {
@@ -185,7 +190,10 @@ export default function Leave() {
        // Check if past
        const isPast = isPastDate(dateInstance);
        // Check if selected
-       const dateStr = dateInstance.toISOString().split('T')[0];
+       const yyyy = dateInstance.getFullYear();
+       const mm = String(dateInstance.getMonth() + 1).padStart(2, '0');
+       const dd = String(dateInstance.getDate()).padStart(2, '0');
+       const dateStr = `${yyyy}-${mm}-${dd}`;
        const isSelected = currentSelectedDateStr === dateStr;
 
        days.push(

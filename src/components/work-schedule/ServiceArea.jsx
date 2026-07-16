@@ -216,7 +216,7 @@ export default function ServiceArea() {
             closeOnBlur={true}
             closeOnSubmit={false}
             dataSet={cityDataSet}
-            initialValue={initialCity}
+            {...(initialCity && { initialValue: initialCity })}
             onChangeText={handleCitySearch}
             onSelectItem={(item) => {
               if (item) {
@@ -247,7 +247,7 @@ export default function ServiceArea() {
             closeOnBlur={true}
             closeOnSubmit={false}
             dataSet={areaDataSet}
-            initialValue={initialArea}
+            {...(initialArea && { initialValue: initialArea })}
             onChangeText={handleAreaSearch}
             onSelectItem={(item) => item && setSelectedArea(item)}
             textInputProps={{

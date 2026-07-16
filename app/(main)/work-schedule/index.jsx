@@ -7,6 +7,7 @@ import { fonts } from '../../../constants/font';
 import ServiceArea from '../../../src/components/work-schedule/ServiceArea';
 import WorkingSchedule from '../../../src/components/work-schedule/WorkingSchedule';
 import Leave from '../../../src/components/work-schedule/Leave';
+import AvailabilityCalendar from '../../../src/components/work-schedule/AvailabilityCalendar';
 
 export default function WorkScheduleScreen() {
   const [activeTab, setActiveTab] = useState(0);
@@ -15,6 +16,7 @@ export default function WorkScheduleScreen() {
     { key: 0, title: 'Service Area' },
     { key: 1, title: 'Schedule' },
     { key: 2, title: 'Leave' },
+    { key: 3, title: 'Calendar' },
   ];
 
   return (
@@ -45,6 +47,7 @@ export default function WorkScheduleScreen() {
           {activeTab === 0 && <ServiceArea />}
           {activeTab === 1 && <WorkingSchedule />}
           {activeTab === 2 && <Leave />}
+          {activeTab === 3 && <AvailabilityCalendar />}
         </View>
       </SafeAreaView>
     </AutocompleteDropdownContextProvider>

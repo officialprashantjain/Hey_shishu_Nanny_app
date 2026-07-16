@@ -16,7 +16,7 @@ export const RequestCard = ({ data, onAccept, onDecline, onViewDetails, headerTi
         {!hideTimer && (
           <View style={styles.timerRow}>
             <Ionicons name="time-outline" size={16} color={colors.error || '#E53935'} />
-            <Text style={styles.timerText}>{data.timeLeft || '20s left'}</Text>
+            {/* <Text style={styles.timerText}>{data.timeLeft || '20s left'}</Text> */}
           </View>
         )}
       </View>
@@ -48,6 +48,13 @@ export const RequestCard = ({ data, onAccept, onDecline, onViewDetails, headerTi
             value={data.location} 
             highlight={data.distance} 
           />
+          {data.totalAmount && (
+             <DetailRow 
+               icon="cash-outline" 
+               label="Total Amount" 
+               value={data.totalAmount} 
+             />
+          )}
         </View>
 
         {/* Note */}
