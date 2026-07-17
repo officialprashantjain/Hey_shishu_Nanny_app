@@ -6,24 +6,44 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useDispatch, useSelector } from "react-redux";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
-// import { SignUpHeader } from "../../../components/SignUpHeader";
 import { CustomButton } from "../../../src/components/common/CustomButton";
 import { CustomInput } from "../../../src/components/common/CustomInput";
 import { CustomImage as Image } from "../../../src/components/common/CustomImage";
+import { sendOtp } from "../../../src/services/authServices";
+import { selectAuthLoading } from "../../../src/redux/slices/authSlice";
 
 export default function LoginOTPScreen() {
   const router = useRouter();
+  const dispatch = useDispatch();
+  const isLoading = useSelector(selectAuthLoading);
   const [phone, setPhone] = useState("");
 
   const handlePhoneChange = (text) => {
     const numericValue = text.replace(/[^0-9]/g, "");
     if (numericValue.length <= 10) {
       setPhone(numericValue);
+    }
+  };
+
+  const handleSendOtp = async () => {
+    if (phone.length !== 10) return;
+
+    const result = await dispatch(sendOtp(phone));
+    if (result.success) {
+      router.push({
+        pathname: "/(auth)/login/otp",
+        params: { phoneNumber: phone }
+      });
+    } else {
+      Alert.alert('Error', result.message);
     }
   };
 
@@ -63,12 +83,13 @@ export default function LoginOTPScreen() {
 
         <View style={styles.footer}>
           <CustomButton
-            title="Send OTP"
-            onPress={() => router.push("/(auth)/login/otp")}
-            disabled={phone.length !== 10}
+            title={isLoading ? "" : "Send OTP"}
+            onPress={handleSendOtp}
+            disabled={phone.length !== 10 || isLoading}
             style={{
               borderRadius: 30,
             }}
+            icon={isLoading ? <ActivityIndicator color={colors.white} /> : null}
           />
 
           <TouchableOpacity

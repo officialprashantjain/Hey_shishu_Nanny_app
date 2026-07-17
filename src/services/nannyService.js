@@ -3,6 +3,9 @@ import api from './api';
 // GET /nanny/profile
 export const getMyProfile = () => api.get('/nanny/profile');
 
+// POST /nanny/profile
+export const createMyProfile = (data = {}) => api.post('/nanny/profile', data);
+
 // PATCH /nanny/profile
 export const updateMyProfile = (data) => api.patch('/nanny/profile', data);
 

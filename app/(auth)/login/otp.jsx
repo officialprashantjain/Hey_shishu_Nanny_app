@@ -7,18 +7,27 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useDispatch, useSelector } from "react-redux";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
-// import { SignUpHeader } from "../../../components/SignUpHeader";
 import { CustomButton } from "../../../src/components/common/CustomButton";
+import { verifyOtp, sendOtp } from "../../../src/services/authServices";
+import { selectAuthLoading, selectAuthError } from "../../../src/redux/slices/authSlice";
+import { createMyProfile } from "../../../src/services/nannyService";
 
 export default function LoginOTPScreen() {
   const router = useRouter();
-  const { type } = useLocalSearchParams();
+  const dispatch = useDispatch();
+  const isLoading = useSelector(selectAuthLoading);
+  const authError = useSelector(selectAuthError);
+  const { type, phoneNumber } = useLocalSearchParams();
   const [otp, setOtp] = useState(["", "", "", ""]);
+  const [resendTimer, setResendTimer] = useState(39);
   const inputs = useRef([]);
 
   const handleChange = (text, index) => {
@@ -38,6 +47,69 @@ export default function LoginOTPScreen() {
   const handleKeyPress = (e, index) => {
     if (e.nativeEvent.key === "Backspace" && !otp[index] && index > 0) {
       inputs.current[index - 1].focus();
+    }
+  };
+
+  const handleSubmit = async () => {
+    const otpCode = otp.join("");
+    if (!phoneNumber || otpCode.length !== 4) return;
+
+    const result = await dispatch(verifyOtp(phoneNumber, otpCode));
+    if (result.success) {
+      if (result.profileNotFound) {
+        Alert.alert(
+          'Profile Not Found ⚠️',
+          'Your profile is not created yet. Click OK to create it and fill in your details.',
+          [
+            {
+              text: 'OK',
+              onPress: async () => {
+                try {
+                  await createMyProfile({});
+                  router.replace('/(main)/personal-info');
+                } catch (err) {
+                  Alert.alert('Error', 'Failed to create profile. Please try again.');
+                }
+              },
+            },
+          ],
+          { cancelable: false }
+        );
+      } else if (!result.isProfileComplete) {
+        Alert.alert(
+          'Profile Incomplete ⚠️',
+          'Your profile is not complete yet. Please fill in your details to get started.',
+          [
+            {
+              text: 'Complete Now',
+              onPress: () => router.replace('/(main)/personal-info'),
+            },
+          ],
+          { cancelable: false }
+        );
+      } else {
+        router.replace('/(main)/(tabs)/requests');
+      }
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendTimer > 0 || !phoneNumber) return;
+
+    const result = await dispatch(sendOtp(phoneNumber));
+    if (result.success) {
+      setResendTimer(39);
+      const timer = setInterval(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      Alert.alert('Error', result.message);
     }
   };
 
@@ -70,25 +142,28 @@ export default function LoginOTPScreen() {
           </View>
         </View>
 
+        {authError ? (
+          <Text style={styles.errorText}>{authError}</Text>
+        ) : null}
+
         <View style={styles.footer}>
           <CustomButton
-            title="Submit"
-            onPress={() => {
-              if (type === "reset") {
-                router.push("/(auth)/login/new_password");
-              } else {
-                router.replace("/(main)/(tabs)/requests");
-              }
-            }}
-            disabled={otp.some((digit) => !digit)}
+            title={isLoading ? "" : "Submit"}
+            onPress={handleSubmit}
+            disabled={otp.some((digit) => !digit) || isLoading}
             style={{
               borderRadius: 30,
             }}
+            icon={isLoading ? <ActivityIndicator color={colors.white} /> : null}
           />
-          <TouchableOpacity style={styles.resendButton}>
+          <TouchableOpacity 
+            style={styles.resendButton}
+            onPress={handleResendOtp}
+            disabled={resendTimer > 0}
+          >
             <Text style={styles.resendText}>Didn't receive code? </Text>
-            <Text style={styles.resendLink}>Resend</Text>
-            <Text style={styles.resendText}> in 39 second</Text>
+            <Text style={[styles.resendLink, resendTimer > 0 && styles.disabledLink]}>Resend</Text>
+            {resendTimer > 0 && <Text style={styles.resendText}> in {resendTimer} second</Text>}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -158,6 +233,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
     fontWeight: "bold",
+  },
+  disabledLink: {
+    color: colors.description,
+  },
+  errorText: {
+    fontFamily: fonts.rubik,
+    fontSize: 14,
+    color: "#D32F2F",
+    marginBottom: 12,
+    marginTop: -10,
+    textAlign: "center",
   },
   footer: {
     marginBottom: 60,

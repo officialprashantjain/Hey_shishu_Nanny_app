@@ -119,17 +119,31 @@ export default function ServiceScreen() {
   }, [isRecording]);
 
   const formatTime = (totalSeconds) => {
-    const h = Math.floor(totalSeconds / 3600);
+    let h = Math.floor(totalSeconds / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);
     const s = totalSeconds % 60;
+    
+    if (h >= 24) {
+      const d = Math.floor(h / 24);
+      const remainingHours = h % 24;
+      return `${d}d, ${remainingHours}h, ${m}m`;
+    }
+    
     if (h > 0) return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   const formatElapsedTime = (totalSeconds) => {
-    const h = Math.floor(totalSeconds / 3600);
+    let h = Math.floor(totalSeconds / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);
     const s = totalSeconds % 60;
+    
+    if (h >= 24) {
+      const d = Math.floor(h / 24);
+      const remainingHours = h % 24;
+      return `${d}d, ${remainingHours}h, ${m}m`;
+    }
+    
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
@@ -267,8 +281,14 @@ export default function ServiceScreen() {
           <View style={styles.outerRing}>
             <View style={styles.innerCircle}>
               <Text style={styles.timeLabel}>Time Remaining</Text>
-              <Text style={styles.bigTime}>{formatTime(timeLeft)}</Text>
-              <Text style={styles.elapsedText}>Elapsed: {formatElapsedTime(elapsed)}</Text>
+              <Text 
+                style={styles.bigTime}
+                adjustsFontSizeToFit={true}
+                numberOfLines={1}
+              >
+                {formatTime(timeLeft)}
+              </Text>
+              <Text style={styles.elapsedText}>Time spent: {formatElapsedTime(elapsed)}</Text>
             </View>
           </View>
         </View>
@@ -594,6 +614,8 @@ const styles = StyleSheet.create({
   },
   innerCircle: {
     alignItems: 'center',
+    width: 220,
+    paddingHorizontal: 10,
   },
   timeLabel: {
     fontFamily: fonts.rubik,
@@ -607,6 +629,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginBottom: 8,
     letterSpacing: 2,
+    textAlign: 'center',
   },
   elapsedText: {
     fontFamily: fonts.rubik,

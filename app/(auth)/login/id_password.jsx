@@ -19,6 +19,7 @@ import { CustomInput } from "../../../src/components/common/CustomInput";
 import { Ionicons } from "@expo/vector-icons";
 import { loginNanny } from "../../../src/services/authServices";
 import { selectAuthLoading, selectAuthError } from "../../../src/redux/slices/authSlice";
+import { createMyProfile } from "../../../src/services/nannyService";
 
 export default function LoginIdPasswordScreen() {
   const router = useRouter();
@@ -34,7 +35,26 @@ export default function LoginIdPasswordScreen() {
     if (!id.trim() || !password.trim()) return;
     const result = await dispatch(loginNanny(id.trim(), password.trim()));
     if (result.success) {
-      if (!result.isProfileComplete) {
+      if (result.profileNotFound) {
+        Alert.alert(
+          'Profile Not Found ⚠️',
+          'Your profile is not created yet. Click OK to create it and fill in your details.',
+          [
+            {
+              text: 'OK',
+              onPress: async () => {
+                try {
+                  await createMyProfile({});
+                  router.replace('/(main)/personal-info');
+                } catch (err) {
+                  Alert.alert('Error', 'Failed to create profile. Please try again.');
+                }
+              },
+            },
+          ],
+          { cancelable: false }
+        );
+      } else if (!result.isProfileComplete) {
         Alert.alert(
           'Profile Incomplete ⚠️',
           'Your profile is not complete yet. Please fill in your details to get started.',
