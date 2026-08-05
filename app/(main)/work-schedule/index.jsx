@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Platform } from 'react-native';
-import { AutocompleteDropdownContextProvider } from 'react-native-autocomplete-dropdown';
 import { Header } from '../../../src/components/layout/Header';
 import { colors } from '../../../constants/color';
 import { fonts } from '../../../constants/font';
@@ -20,8 +19,7 @@ export default function WorkScheduleScreen() {
   ];
 
   return (
-    <AutocompleteDropdownContextProvider>
-      <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container}>
         <Header title="Work Schedule" showBack />
         
         {/* Top Tabs */}
@@ -50,7 +48,6 @@ export default function WorkScheduleScreen() {
           {activeTab === 3 && <AvailabilityCalendar />}
         </View>
       </SafeAreaView>
-    </AutocompleteDropdownContextProvider>
   );
 }
 
