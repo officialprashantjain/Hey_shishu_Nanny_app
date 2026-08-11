@@ -64,8 +64,6 @@ export default function PersonalInfoScreen() {
     if (profile) {
       setBio(profile.bio || "");
       setExperience(String(profile.experience ?? ""));
-      setHourlyRate(String(profile.hourlyRate ?? ""));
-      setMonthlyRate(String(profile.monthlyRate ?? ""));
       setSelectedAges(profile.ageGroupSpecialty || []);
       setSelectedSkills(profile.skills || []);
       setIsAvailableForWork(profile.isAvailableForWork || false);
@@ -102,8 +100,8 @@ export default function PersonalInfoScreen() {
       const payload = {
         bio,
         experience: Number(experience) || 0,
-        hourlyRate: Number(hourlyRate) || 0,
-        monthlyRate: Number(monthlyRate) || 0,
+        hourlyRate: 0,
+        monthlyRate: 0,
         ageGroupSpecialty: selectedAges,
         skills: selectedSkills,
         isAvailableForWork,
@@ -189,35 +187,7 @@ export default function PersonalInfoScreen() {
           </View>
         </View>
 
-        {/* ── 3. Rates ────────────────────────────────────────────────────────── */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Rates</Text>
 
-          <View style={styles.rowInputs}>
-            <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
-              <Text style={styles.label}>Hourly Rate (₹)</Text>
-              <TextInput
-                style={styles.input}
-                value={hourlyRate}
-                onChangeText={setHourlyRate}
-                keyboardType="numeric"
-                placeholder="200"
-                placeholderTextColor="#9CA3AF"
-              />
-            </View>
-            <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>Monthly Rate (₹)</Text>
-              <TextInput
-                style={styles.input}
-                value={monthlyRate}
-                onChangeText={setMonthlyRate}
-                keyboardType="numeric"
-                placeholder="18000"
-                placeholderTextColor="#9CA3AF"
-              />
-            </View>
-          </View>
-        </View>
 
         {/* ── 4. Stats (Read-only) ─────────────────────────────────────────────── */}
         <View style={styles.sectionCard}>
