@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Modal, TextInput } from 'react-native';
 import { colors } from '../../../../constants/color';
 import { fonts } from '../../../../constants/font';
 import { RequestCard } from '../../../../src/components/features/RequestCard';
@@ -14,6 +14,10 @@ export default function RequestsScreen() {
   const dispatch = useDispatch();
   const { showAlert } = useAlert();
   const [activeTab, setActiveTab] = useState('pending');
+
+  const [declineModalVisible, setDeclineModalVisible] = useState(false);
+  const [selectedDeclineId, setSelectedDeclineId] = useState(null);
+  const [declineReason, setDeclineReason] = useState('');
 
   const pendingBookings = useSelector(selectPendingBookings);
   const completedBookings = useSelector(selectCompletedBookings);
@@ -49,11 +53,21 @@ export default function RequestsScreen() {
     }
   };
 
-  const handleDecline = async (id) => {
+  const handleDeclineClick = (id) => {
+    setSelectedDeclineId(id);
+    setDeclineReason('');
+    setDeclineModalVisible(true);
+  };
+
+  const handleDeclineSubmit = async () => {
+    if (!declineReason.trim()) {
+      return showAlert('Error', 'Please provide a reason for declining.');
+    }
     try {
-      const resultAction = await dispatch(setBookingStatus({ id, status: 'cancelled' }));
+      const resultAction = await dispatch(setBookingStatus({ id: selectedDeclineId, status: 'cancelled', reason: declineReason }));
       if (setBookingStatus.fulfilled.match(resultAction)) {
         showAlert('Success', 'Booking declined.');
+        setDeclineModalVisible(false);
       } else {
         showAlert('Error', resultAction.payload || 'Failed to decline booking');
       }
@@ -160,7 +174,7 @@ export default function RequestsScreen() {
                 subtext={subtext}
                 hideTimer={hideTimer}
                 onAccept={activeTab === 'pending' ? () => handleAccept(mapped.id) : null}
-                onDecline={activeTab === 'pending' ? () => handleDecline(mapped.id) : null}
+                onDecline={activeTab === 'pending' ? () => handleDeclineClick(mapped.id) : null}
                 onViewDetails={() => handleViewRequestDetails(mapped)}
               />
             );
@@ -168,6 +182,37 @@ export default function RequestsScreen() {
         )}
         <View style={{ height: 120 }} />
       </ScrollView>
+
+      {/* Decline Reason Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={declineModalVisible}
+        onRequestClose={() => setDeclineModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Decline Request</Text>
+            <Text style={styles.modalSub}>Please provide a reason for declining.</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. Not available, Too far..."
+              value={declineReason}
+              onChangeText={setDeclineReason}
+              multiline
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setDeclineModalVisible(false)}>
+                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalBtnSubmit} onPress={handleDeclineSubmit}>
+                <Text style={styles.modalBtnSubmitText}>Submit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -218,5 +263,68 @@ const styles = StyleSheet.create({
     color: colors.description,
     textAlign: 'center',
     marginTop: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '85%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 18,
+    color: colors.primary,
+    marginBottom: 8,
+  },
+  modalSub: {
+    fontFamily: fonts.rubik,
+    fontSize: 14,
+    color: colors.description,
+    marginBottom: 16,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
+    borderRadius: 10,
+    padding: 12,
+    fontFamily: fonts.rubik,
+    fontSize: 14,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  modalBtnCancel: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#F5F5F5',
+  },
+  modalBtnCancelText: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 14,
+    color: colors.description,
+  },
+  modalBtnSubmit: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: colors.error || '#E53935',
+  },
+  modalBtnSubmitText: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 14,
+    color: '#fff',
   }
 });
