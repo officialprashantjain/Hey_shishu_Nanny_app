@@ -13,7 +13,7 @@ import { fonts } from '../../../../constants/font';
 import { useRouter } from 'expo-router';
 import { CustomButton } from '../../../../src/components/common/CustomButton';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchOngoingBookings, startRunningBooking, selectOngoingBookings, selectBookingLoading } from '../../../../src/redux/slices/bookingSlice';
+import { fetchOngoingBookings, startRunningBooking, selectOngoingBookings, selectBookingLoading, selectActiveShift, startDailyShift, selectConfirmedBookings, selectOnrunningBookings, fetchOnrunningBookings } from '../../../../src/redux/slices/bookingSlice';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo } from 'react';
 import { useAlert } from '../../../../src/contexts/AlertContext';
@@ -28,15 +28,53 @@ export default function OnTheWayScreen() {
   
   const dispatch = useDispatch();
   const ongoingBookings = useSelector(selectOngoingBookings);
+  const confirmedBookings = useSelector(selectConfirmedBookings);
+  const onrunningBookings = useSelector(selectOnrunningBookings);
   const isLoading = useSelector(selectBookingLoading);
+  const activeShift = useSelector(selectActiveShift);
   
   useFocusEffect(
     useCallback(() => {
       dispatch(fetchOngoingBookings());
+      dispatch(fetchOnrunningBookings()); // Needs to check if master booking is onrunning
     }, [dispatch])
   );
   
   const ACTIVE_JOB = useMemo(() => {
+    // ── MULTI-DAY FLOW: Use activeShift + confirmed parent booking ──
+    if (activeShift) {
+       // Search across all possible status lists for the master booking!
+       const parentBooking = 
+          confirmedBookings.find(b => b._id === activeShift.bookingId) || 
+          ongoingBookings.find(b => b._id === activeShift.bookingId) || 
+          onrunningBookings.find(b => b._id === activeShift.bookingId);
+       
+       if (!parentBooking) return null;
+       const start = new Date(parentBooking.startDateTime);
+       const end = new Date(parentBooking.endDateTime);
+       return {
+         id: parentBooking._id,
+         isShift: true,
+         shiftId: activeShift._id,
+         childName: parentBooking.childIds?.[0]?.firstName || 'Aarav Mehta',
+         childAge: parentBooking.childIds?.[0]?.age ? `${parentBooking.childIds[0].age} Years Old` : '2.5 Years Old',
+         childPhoto: require('../../../../assets/icons/nanny-image.svg'),
+         parentName: parentBooking.parentId?.fullName || 'Sneha Sharma',
+         parentPhoto: require('../../../../assets/icons/nanny-image.svg'),
+         address: parentBooking.address?.fullAddress || `${parentBooking.address?.area || ''} ${parentBooking.address?.city || ''}`,
+         distance: '1.8 km',
+         childNotes: parentBooking.parentNotes || '',
+         date: new Date(activeShift.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+         time: `${start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })} – ${end.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })}`,
+         destination: { 
+           latitude: parentBooking.serviceLocation?.coordinates?.[1] || 22.7513, 
+           longitude: parentBooking.serviceLocation?.coordinates?.[0] || 75.8946 
+         },
+         fullAddress: parentBooking.address?.fullAddress || '',
+       };
+    }
+
+    // ── SINGLE-DAY (CLASSIC) FLOW ──
     if (!ongoingBookings || ongoingBookings.length === 0) return null;
     const booking = ongoingBookings[0];
     const start = new Date(booking.startDateTime);
@@ -178,13 +216,30 @@ export default function OnTheWayScreen() {
     }
     
     try {
-      const resultAction = await dispatch(startRunningBooking({ id: ACTIVE_JOB.id, otp: enteredOtp }));
-      if (startRunningBooking.fulfilled.match(resultAction)) {
-        setShowOtpModal(false);
-        setOtp(['', '', '', '']);
-        setShowAudioModal(true);
+      if (ACTIVE_JOB.isShift) {
+        // Multi-Day Secure Flow
+        const resultAction = await dispatch(startDailyShift({ 
+           shiftId: ACTIVE_JOB.shiftId, 
+           otp: enteredOtp,
+           location: nannyLocation 
+        }));
+        if (startDailyShift.fulfilled.match(resultAction)) {
+          setShowOtpModal(false);
+          setOtp(['', '', '', '']);
+          setShowAudioModal(true);
+        } else {
+          showAlert('Error', resultAction.payload || 'Incorrect OTP or verification failed.');
+        }
       } else {
-        showAlert('Error', resultAction.payload || 'Incorrect OTP or verification failed.');
+        // Classic Flow
+        const resultAction = await dispatch(startRunningBooking({ id: ACTIVE_JOB.id, otp: enteredOtp }));
+        if (startRunningBooking.fulfilled.match(resultAction)) {
+          setShowOtpModal(false);
+          setOtp(['', '', '', '']);
+          setShowAudioModal(true);
+        } else {
+          showAlert('Error', resultAction.payload || 'Incorrect OTP or verification failed.');
+        }
       }
     } catch (error) {
       showAlert('Error', 'An unexpected error occurred verifying OTP.');

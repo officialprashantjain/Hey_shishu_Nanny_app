@@ -7,7 +7,7 @@ import { UpcomingBookingCard } from '../../../../src/components/features/Upcomin
 import { CustomButton } from '../../../../src/components/common/CustomButton';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchConfirmedBookings, startBooking, selectConfirmedBookings, selectBookingLoading } from '../../../../src/redux/slices/bookingSlice';
+import { fetchConfirmedBookings, fetchOnrunningBookings, startBooking, selectConfirmedBookings, selectOnrunningBookings, selectBookingLoading, fetchTodayShiftContext } from '../../../../src/redux/slices/bookingSlice';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAlert } from '../../../../src/contexts/AlertContext';
 
@@ -17,14 +17,27 @@ export default function UpcomingBookingScreen() {
   const { showAlert } = useAlert();
   
   const confirmedBookings = useSelector(selectConfirmedBookings);
+  const onrunningBookings = useSelector(selectOnrunningBookings);
   const isLoading = useSelector(selectBookingLoading);
 
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [pendingBookingId, setPendingBookingId] = useState(null);
+  const [activeTab, setActiveTab] = useState('New Bookings'); // 'New Bookings' or 'Daily Bookings'
+
+  const singleDayBookings = confirmedBookings.filter(b => b.bookingMode === 'single_day' || !b.bookingMode);
+  
+  // Combine confirmed + onrunning for multi-day, deduplicating by _id to prevent React key collision
+  const multiDayMap = new Map();
+  confirmedBookings.filter(b => b.bookingMode === 'date_range').forEach(b => multiDayMap.set(b._id, b));
+  onrunningBookings.filter(b => b.bookingMode === 'date_range').forEach(b => multiDayMap.set(b._id, b));
+  const multiDayBookings = Array.from(multiDayMap.values());
+
+  const displayedBookings = activeTab === 'New Bookings' ? singleDayBookings : multiDayBookings;
 
   useFocusEffect(
     useCallback(() => {
       dispatch(fetchConfirmedBookings());
+      dispatch(fetchOnrunningBookings());
     }, [dispatch])
   );
 
@@ -36,13 +49,26 @@ export default function UpcomingBookingScreen() {
   const confirmStartJourney = async () => {
     setShowLocationModal(false);
     console.log("Starting journey for booking:", pendingBookingId);
+    
     try {
-      const resultAction = await dispatch(startBooking(pendingBookingId));
-      if (startBooking.fulfilled.match(resultAction)) {
-        // Move to Tab 3 for Active Location Session tracking
-        router.push('/(main)/(tabs)/ontheway');
+      if (activeTab === 'Daily Bookings') {
+        const resultAction = await dispatch(fetchTodayShiftContext(pendingBookingId));
+        if (fetchTodayShiftContext.fulfilled.match(resultAction)) {
+           if (resultAction.payload) { // Assuming shift is found and attached
+             router.push('/(main)/(tabs)/ontheway');
+           } else {
+             showAlert('No Shift', 'There is no shift scheduled or active for today.');
+           }
+        } else {
+           showAlert('Error', resultAction.payload || 'Failed to fetch today shift');
+        }
       } else {
-        showAlert('Error', resultAction.payload || 'Failed to start journey');
+        const resultAction = await dispatch(startBooking(pendingBookingId));
+        if (startBooking.fulfilled.match(resultAction)) {
+          router.push('/(main)/(tabs)/ontheway');
+        } else {
+          showAlert('Error', resultAction.payload || 'Failed to start journey');
+        }
       }
     } catch (e) {
       showAlert('Error', 'Unexpected error occurred while starting journey');
@@ -111,16 +137,35 @@ export default function UpcomingBookingScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       
       <View style={styles.pageHeader}>
-        <Text style={styles.pageTitle}>Upcoming Sessions ({confirmedBookings.length})</Text>
+        <Text style={styles.pageTitle}>Upcoming Sessions</Text>
         <Text style={styles.pageSubtitle}>Select a booking to start your journey.</Text>
       </View>
 
-      {isLoading && confirmedBookings.length === 0 ? (
+      <View style={styles.tabContainer}>
+        <TouchableOpacity 
+          style={[styles.tabButton, activeTab === 'New Bookings' && styles.activeTabButton]}
+          onPress={() => setActiveTab('New Bookings')}
+        >
+          <Text style={[styles.tabText, activeTab === 'New Bookings' && styles.activeTabText]}>
+            Single Day ({singleDayBookings.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.tabButton, activeTab === 'Daily Bookings' && styles.activeTabButton]}
+          onPress={() => setActiveTab('Daily Bookings')}
+        >
+          <Text style={[styles.tabText, activeTab === 'Daily Bookings' && styles.activeTabText]}>
+            Multi Day ({multiDayBookings.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {isLoading && displayedBookings.length === 0 ? (
         <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
-      ) : confirmedBookings.length === 0 ? (
-        <Text style={{ ...styles.pageSubtitle, textAlign: 'center', marginTop: 20 }}>No upcoming bookings scheduled.</Text>
+      ) : displayedBookings.length === 0 ? (
+        <Text style={{ ...styles.pageSubtitle, textAlign: 'center', marginTop: 20 }}>No upcoming bookings scheduled here.</Text>
       ) : (
-        confirmedBookings.map((booking) => {
+        displayedBookings.map((booking) => {
           const mapped = mapBookingToCard(booking);
           return (
             <UpcomingBookingCard 
@@ -193,6 +238,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.description,
     marginTop: 4,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    backgroundColor: '#fff',
+    borderRadius: 30,
+    padding: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 26,
+  },
+  activeTabButton: {
+    backgroundColor: colors.primary,
+  },
+  tabText: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 14,
+    color: colors.description,
+  },
+  activeTabText: {
+    color: colors.white,
   },
   modalOverlay: {
     flex: 1,

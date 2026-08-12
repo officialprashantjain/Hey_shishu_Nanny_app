@@ -54,3 +54,20 @@ export const rejectBooking = async (id, reason = "Not available on that date") =
 export const completeBooking = async (id, otp) => {
   return await api.patch(`/nanny/bookings/${id}/complete`, { otp });
 };
+
+// ── MULTI-DAY SHIFT APIs ─────────────────────────────────
+
+// GET /api/v1/nanny/shift/:bookingId/today
+export const getTodayShiftContextApi = async (bookingId) => {
+  return await api.get(`/nanny/shift/${bookingId}/today`);
+};
+
+// POST /api/v1/nanny/shift/start
+export const startShiftApi = async (shiftId, otp, location) => {
+  return await api.post(`/nanny/shift/start`, { shiftId, otp, location });
+};
+
+// POST /api/v1/nanny/shift/end
+export const endShiftApi = async (shiftId) => {
+  return await api.post(`/nanny/shift/end`, { shiftId });
+};

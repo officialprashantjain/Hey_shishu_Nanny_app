@@ -12,7 +12,7 @@ import { colors } from '../../../../constants/color';
 import { fonts } from '../../../../constants/font';
 import { useRouter } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchOnrunningBookings, completeSessionBooking, selectOnrunningBookings, selectBookingLoading } from '../../../../src/redux/slices/bookingSlice';
+import { fetchOnrunningBookings, completeSessionBooking, selectOnrunningBookings, selectBookingLoading, selectActiveShift, endDailyShift } from '../../../../src/redux/slices/bookingSlice';
 import { useAlert } from '../../../../src/contexts/AlertContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo } from 'react';
@@ -25,6 +25,7 @@ export default function ServiceScreen() {
   const { showAlert } = useAlert();
   const onrunningBookings = useSelector(selectOnrunningBookings);
   const isLoading = useSelector(selectBookingLoading);
+  const activeShift = useSelector(selectActiveShift);
 
   useFocusEffect(
     useCallback(() => {
@@ -33,6 +34,37 @@ export default function ServiceScreen() {
   );
 
   const ACTIVE_JOB = useMemo(() => {
+    // ── MULTI-DAY SHIFT FLOW ──
+    if (activeShift) {
+       const parentBooking = onrunningBookings.find(b => b._id === activeShift.bookingId);
+       if (!parentBooking) return null;
+       const start = new Date(parentBooking.startDateTime);
+       const end = new Date(parentBooking.endDateTime);
+       const totalHours = Math.round((end - start) / (1000 * 60 * 60));
+       
+       return {
+         id: parentBooking._id,
+         isShift: true,
+         shiftId: activeShift._id,
+         isFinalShift: activeShift.shiftNumber === activeShift.totalShifts,
+         childName: parentBooking.childIds?.[0]?.firstName || 'Aarav Mehta',
+         childAge: parentBooking.childIds?.[0]?.age ? `${parentBooking.childIds[0].age} Years Old` : '2.5 Years Old',
+         childPhoto: require('../../../../assets/icons/nanny-image.svg'),
+         parentName: parentBooking.parentId?.fullName || 'Sneha Sharma',
+         parentPhoto: require('../../../../assets/icons/nanny-image.svg'),
+         address: parentBooking.address?.fullAddress || `${parentBooking.address?.area || ''} ${parentBooking.address?.city || ''}`,
+         distance: '1.8 km',
+         startTime: start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' }),
+         totalHours: `${totalHours} Hours`,
+         childNotes: parentBooking.parentNotes || '',
+         date: new Date(activeShift.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+         time: `${start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })} – ${end.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })}`,
+         startDateTime: parentBooking.startDateTime,
+         endDateTime: parentBooking.endDateTime,
+       };
+    }
+
+    // ── CLASSIC SINGLE-DAY FLOW ──
     if (!onrunningBookings || onrunningBookings.length === 0) return null;
     const booking = onrunningBookings[0];
     const start = new Date(booking.startDateTime);
@@ -185,6 +217,8 @@ export default function ServiceScreen() {
   };
 
   const handleCompleteService = async () => {
+    // For Multi-Day (Daily Shift), no OTP is technically meant to be required for Clock Out,
+    // but preserving the UI structure if so.
     const enteredOtp = otp.join('');
     if (enteredOtp.length < 4) {
       showAlert('Incomplete OTP', 'Please enter the 4-digit completion code provided by the parent.');
@@ -194,13 +228,29 @@ export default function ServiceScreen() {
     if (!ACTIVE_JOB) return;
     
     try {
-      const resultAction = await dispatch(completeSessionBooking({ id: ACTIVE_JOB.id, otp: enteredOtp }));
-      if (completeSessionBooking.fulfilled.match(resultAction)) {
-          setShowOtpModal(false);
-          setOtp(['', '', '', '']);
-          setShowSuccessModal(true);
+      if (ACTIVE_JOB.isShift) {
+        // Multi-Day / Shift completion flow
+        const resultAction = await dispatch(endDailyShift({ shiftId: ACTIVE_JOB.shiftId }));
+        if (endDailyShift.fulfilled.match(resultAction)) {
+           setShowOtpModal(false);
+           setOtp(['', '', '', '']);
+           setShowSuccessModal(true);
+           if (resultAction.payload.isFullyCompleted) {
+              // Master Booking is done
+           }
+        } else {
+           showAlert('Error', resultAction.payload || 'Failed to complete daily shift.');
+        }
       } else {
-          showAlert('Error', resultAction.payload || 'Incorrect completion OTP');
+        // Classic Session flow
+        const resultAction = await dispatch(completeSessionBooking({ id: ACTIVE_JOB.id, otp: enteredOtp }));
+        if (completeSessionBooking.fulfilled.match(resultAction)) {
+            setShowOtpModal(false);
+            setOtp(['', '', '', '']);
+            setShowSuccessModal(true);
+        } else {
+            showAlert('Error', resultAction.payload || 'Incorrect completion OTP');
+        }
       }
     } catch(e) {
       showAlert('Error', 'Unexpected error finalizing service.');
@@ -333,7 +383,9 @@ export default function ServiceScreen() {
 
         {/* ── SERVICE COMPLETED TRIGGER ──────────────────────────────────── */}
         <CustomButton
-          title="Service Completed"
+          title={ACTIVE_JOB.isShift
+            ? (ACTIVE_JOB.isFinalShift ? "Complete Final Booking" : "End Today's Shift") 
+            : "Service Completed"}
           onPress={() => setShowOtpModal(true)}
           style={{
             marginTop: 20,
