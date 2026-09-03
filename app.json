@@ -27,9 +27,26 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFF6E6"
       },
+      "package": "com.heyshishu.nannyapp",
       "edgeToEdgeEnabled": true,
       "navigationBarColor": "#FFF6E6",
-      "navigationBarTranslucent": true
+      "navigationBarTranslucent": true,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCyNAW5GlsMpBGylWnbhzzCl9AjPt490Oo"
+        }
+      },
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.VIBRATE",
+        "android.permission.INTERNET"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -45,7 +62,19 @@
           "locationAlwaysAndWhenInUsePermission": "This app needs location access to track your journey."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow HeyShishu Nanny to access your camera."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow HeyShishu Nanny to access your photos."
+        }
+      ]
     ]
   }
 }

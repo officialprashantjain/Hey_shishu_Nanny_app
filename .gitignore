@@ -13,3 +13,7 @@ veda
 .DS_Store
 *.log
 # .env
+
+# generated native folders
+/ios
+/android
