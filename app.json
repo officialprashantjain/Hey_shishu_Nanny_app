@@ -15,7 +15,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nannyapp.provider",
+      "bundleIdentifier": "com.prakhar9129.heyshishu-nannyapp",
+      "buildNumber": "2",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Nanny App needs your location to show your live position to parents.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Nanny App needs location to track your route.",
@@ -23,6 +24,7 @@
       }
     },
     "android": {
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFF6E6"
