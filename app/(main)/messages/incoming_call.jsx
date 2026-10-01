@@ -70,7 +70,7 @@ export default function IncomingCallScreen() {
 
   const handleAccept = () => {
     clearTimeout(autoDeclineTimer.current);
-    router.push('/(main)/messages/active_call');
+    router.push('/(main)/video-call');
   };
 
   return (

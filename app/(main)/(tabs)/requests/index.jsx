@@ -144,6 +144,13 @@ export default function RequestsScreen() {
         </TouchableOpacity>
       </View>
 
+      <TouchableOpacity 
+        style={{ backgroundColor: '#FF3B30', padding: 15, marginHorizontal: 20, marginTop: 15, borderRadius: 10, alignItems: 'center' }} 
+        onPress={() => router.push("/(main)/video-call")}
+      >
+        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>🎥 Test Agora Video Call 🎥</Text>
+      </TouchableOpacity>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {isLoading && activeBookings.length === 0 ? (
           <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
