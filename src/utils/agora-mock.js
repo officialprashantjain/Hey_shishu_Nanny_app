@@ -10,13 +10,20 @@ export const createAgoraRtcEngine = () => {
   console.warn('[Agora Mock] react-native-agora is not available in Expo Go. Video calls will not work.');
   return {
     registerEventHandler: () => {},
-    initialize: () => {},
-    enableVideo: () => {},
-    joinChannel: async () => {},
-    leaveChannel: () => {},
+    unregisterEventHandler: () => {},
+    initialize: () => 0,
+    enableVideo: () => 0,
+    enableAudio: () => 0,
+    joinChannel: async () => 0,
+    leaveChannel: () => 0,
     release: () => {},
-    muteLocalAudioStream: () => {},
-    muteLocalVideoStream: () => {},
+    renewToken: () => 0,
+    setChannelProfile: () => 0,
+    setClientRole: () => 0,
+    setRemoteRenderMode: () => 0,
+    muteLocalAudioStream: () => 0,
+    muteLocalVideoStream: () => 0,
+    switchCamera: () => 0,
   };
 };
 
@@ -35,11 +42,24 @@ export const VideoSourceType = {
   VideoSourceRemote: 1,
 };
 
-// Stub RtcSurfaceView component
+export const RenderModeType = {
+  RenderModeHidden: 1,
+  RenderModeFit: 2,
+  RenderModeAdaptive: 3,
+};
+
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 export const RtcSurfaceView = ({ style }) => (
+  <View style={[style, stubStyles.container]}>
+    <Text style={stubStyles.text}>📵 Video not available{'\n'}in Expo Go</Text>
+  </View>
+);
+
+export const RtcTextureView = RtcSurfaceView;
+
+export const AgoraVideoView = ({ style }) => (
   <View style={[style, stubStyles.container]}>
     <Text style={stubStyles.text}>📵 Video not available{'\n'}in Expo Go</Text>
   </View>
@@ -50,14 +70,10 @@ const stubStyles = StyleSheet.create({
     backgroundColor: '#1a1a2e',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#333',
   },
   text: {
-    color: '#ff4444',
+    color: '#aaa',
+    fontSize: 13,
     textAlign: 'center',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });
