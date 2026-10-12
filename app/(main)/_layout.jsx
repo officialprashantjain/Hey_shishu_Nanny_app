@@ -70,6 +70,14 @@ export default function MainLayout() {
         name="work-schedule/index" 
         options={{ drawerItemStyle: { display: 'none' }, headerTitle: 'Work Schedule' }} 
       />
+      <Drawer.Screen 
+        name="meetings/index" 
+        options={{ drawerItemStyle: { display: 'none' }, unmountOnBlur: true }} 
+      />
+      <Drawer.Screen 
+        name="meeting" 
+        options={{ drawerItemStyle: { display: 'none' }, unmountOnBlur: true }} 
+      />
     </Drawer>
   );
 }
