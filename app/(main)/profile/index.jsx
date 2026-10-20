@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,17 +6,23 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomImage as Image } from "../../../src/components/common/CustomImage";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import { useDispatch, useSelector } from "react-redux";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
-import { selectUser } from "../../../src/redux/slices/authSlice";
-import { selectProfile } from "../../../src/redux/slices/profileSlice";
+import { selectUser, setUser } from "../../../src/redux/slices/authSlice";
+import {
+  selectProfile,
+  fetchProfileSuccess,
+  updateProfileSuccess,
+} from "../../../src/redux/slices/profileSlice";
+import { getMyProfile, updateMyProfile } from "../../../src/services/nannyService";
 import { logoutNanny } from "../../../src/services/authServices";
 import { useAlert } from "../../../src/contexts/AlertContext";
 
@@ -28,9 +34,41 @@ export default function ProfileScreen() {
   const profile = useSelector(selectProfile);
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
   const [isPhotoModalVisible, setIsPhotoModalVisible] = useState(false);
-  const [profilePicUri, setProfilePicUri] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Fetch latest profile from backend on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      getMyProfile()
+        .then((res) => {
+          const fetchedProfile = res?.data?.profile || res?.profile;
+          if (isMounted && fetchedProfile) {
+            dispatch(fetchProfileSuccess(fetchedProfile));
+          }
+        })
+        .catch((err) => {
+          console.log("[ProfileScreen] Error loading profile:", err?.message);
+        });
+
+      return () => {
+        isMounted = false;
+      };
+    }, [dispatch])
+  );
 
   const averageRating = profile?.averageRating ?? 0;
+  const avatarUri =
+    profile?.profilePic ||
+    profile?.traineeApplicationId?.profilePic ||
+    user?.profilePic;
+  const nannyName =
+    profile?.traineeApplicationId?.fullName || user?.fullName || "Nanny";
+  const nannyPhone = profile?.traineeApplicationId?.phoneNumber
+    ? `+91 ${profile.traineeApplicationId.phoneNumber}`
+    : user?.phoneNumber
+    ? `+91 ${user.phoneNumber}`
+    : user?.email || "";
 
   const menuOptions = [
     {
@@ -76,6 +114,40 @@ export default function ProfileScreen() {
     },
   ];
 
+  const uploadProfilePhoto = async (imageUri) => {
+    try {
+      setIsUploading(true);
+      const filename = imageUri.split("/").pop() || "profile.jpg";
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+      const formData = new FormData();
+      formData.append("profilePic", {
+        uri: imageUri,
+        name: filename,
+        type,
+      });
+
+      const res = await updateMyProfile(formData);
+      const updatedProfile = res?.data?.profile || res?.profile;
+      if (updatedProfile) {
+        dispatch(updateProfileSuccess(updatedProfile));
+        if (updatedProfile.profilePic) {
+          dispatch(setUser({ profilePic: updatedProfile.profilePic }));
+        }
+        showAlert("Success", "Profile photo updated successfully!");
+      }
+    } catch (err) {
+      console.error("[ProfileScreen] Upload photo error:", err);
+      showAlert(
+        "Upload Failed",
+        err?.response?.data?.message || err?.message || "Could not upload profile photo. Please try again."
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handlePickImage = async () => {
     setIsPhotoModalVisible(false);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -91,8 +163,8 @@ export default function ProfileScreen() {
       quality: 0.8,
     });
 
-    if (!result.canceled) {
-      setProfilePicUri(result.assets[0].uri);
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      await uploadProfilePhoto(result.assets[0].uri);
     }
   };
 
@@ -110,8 +182,8 @@ export default function ProfileScreen() {
       quality: 0.8,
     });
 
-    if (!result.canceled) {
-      setProfilePicUri(result.assets[0].uri);
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      await uploadProfilePhoto(result.assets[0].uri);
     }
   };
 
@@ -147,30 +219,47 @@ export default function ProfileScreen() {
       >
         <View style={styles.userCard}>
           <View style={styles.avatarRow}>
-            <Image
-              source={profilePicUri ? { uri: profilePicUri } : require("../../../assets/icons/nanny-image.svg")}
-              style={styles.profilePic}
-            />
+            <View style={styles.avatarContainer}>
+              <Image
+                source={
+                  avatarUri
+                    ? { uri: avatarUri }
+                    : require("../../../assets/icons/nanny-image.svg")
+                }
+                style={styles.profilePic}
+                contentFit="cover"
+              />
+              {isUploading && (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="small" color={colors.white} />
+                </View>
+              )}
+            </View>
 
-            <TouchableOpacity style={styles.changePhotoButton} onPress={() => setIsPhotoModalVisible(true)}>
-              <Text style={styles.changePhotoText}>Change Photo</Text>
+            <TouchableOpacity
+              style={[styles.changePhotoButton, isUploading && { opacity: 0.6 }]}
+              onPress={() => !isUploading && setIsPhotoModalVisible(true)}
+              disabled={isUploading}
+            >
+              <Text style={styles.changePhotoText}>
+                {isUploading ? "Uploading..." : "Change Photo"}
+              </Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{user?.fullName || "Nanny"}</Text>
-            <Text style={styles.userPhone}>
-              {profile?.traineeApplicationId?.phoneNumber
-                ? `+91 ${profile.traineeApplicationId.phoneNumber}`
-                : user?.email || ""}
-            </Text>
+            <Text style={styles.userName}>{nannyName}</Text>
+            {!!nannyPhone && <Text style={styles.userPhone}>{nannyPhone}</Text>}
 
             <View style={styles.ratingContainer}>
               {[1, 2, 3, 4, 5].map((i) => (
                 <Image
                   key={i}
                   source={require("../../../assets/icons/review-star.svg")}
-                  style={[styles.starIcon, i > Math.round(averageRating) && { opacity: 0.25 }]}
+                  style={[
+                    styles.starIcon,
+                    i > Math.round(averageRating) && { opacity: 0.25 },
+                  ]}
                 />
               ))}
               <Text style={styles.ratingText}>{averageRating.toFixed(1)}</Text>
@@ -359,10 +448,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     width: "100%",
   },
+  avatarContainer: {
+    position: "relative",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    overflow: "hidden",
+  },
   profilePic: {
     width: 80,
     height: 80,
     borderRadius: 40,
+  },
+  uploadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
   changePhotoButton: {
     backgroundColor: colors.background,

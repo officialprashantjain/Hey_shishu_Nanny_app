@@ -1,14 +1,46 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { CustomImage as Image } from '../common/CustomImage';
 import { useRouter } from 'expo-router';
+import { useDispatch, useSelector } from 'react-redux';
 import { colors } from '../../../constants/color';
 import { fonts } from '../../../constants/font';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { selectUser } from '../../redux/slices/authSlice';
+import { selectProfile, fetchProfileSuccess } from '../../redux/slices/profileSlice';
+import { getMyProfile } from '../../services/nannyService';
 
 export default function CustomDrawerContent(props) {
   const router = useRouter();
+  const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
+  const user = useSelector(selectUser);
+  const profile = useSelector(selectProfile);
+
+  useEffect(() => {
+    getMyProfile()
+      .then((res) => {
+        const p = res?.data?.profile || res?.profile;
+        if (p) dispatch(fetchProfileSuccess(p));
+      })
+      .catch((err) => {
+        console.log('[CustomDrawerContent] Error loading profile:', err?.message);
+      });
+  }, [dispatch]);
+
+  const avatarUri =
+    profile?.profilePic ||
+    profile?.traineeApplicationId?.profilePic ||
+    user?.profilePic;
+  const nannyName =
+    profile?.traineeApplicationId?.fullName || user?.fullName || 'Nanny';
+  const userPhone = profile?.traineeApplicationId?.phoneNumber
+    ? `+91 ${profile.traineeApplicationId.phoneNumber}`
+    : user?.phoneNumber
+    ? `+91 ${user.phoneNumber}`
+    : user?.email || '';
+  const averageRating = profile?.averageRating ?? 0;
+  const totalReviews = profile?.totalReviews ?? 0;
 
   const menuItems = [
     { label: 'Home', icon: require('../../../assets/icons/drawer-home.svg'), route: '/(main)/(tabs)/requests' },
@@ -35,20 +67,23 @@ export default function CustomDrawerContent(props) {
         <View style={styles.profileContainer}>
           
           <Image 
-            source={require('../../../assets/icons/nanny-image.svg')} 
+            source={avatarUri ? { uri: avatarUri } : require('../../../assets/icons/nanny-image.svg')} 
             style={styles.avatar}
+            contentFit="cover"
           />
 
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>Jessica Miller</Text>
-            <Text style={styles.userPhone}>+91 9876543210</Text>
+            <Text style={styles.userName} numberOfLines={1}>{nannyName}</Text>
+            {!!userPhone && <Text style={styles.userPhone}>{userPhone}</Text>}
 
             <View style={styles.ratingContainer}>
               <Image 
                 source={require('../../../assets/icons/review-star.svg')} 
                 style={styles.starIcon} 
               />
-              <Text style={styles.ratingText}>4.9 (120 Reviews)</Text>
+              <Text style={styles.ratingText}>
+                {averageRating.toFixed(1)} ({totalReviews} Reviews)
+              </Text>
             </View>
           </View>
 
@@ -98,7 +133,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 85,
     height: 85,
-    borderRadius: 40,
+    borderRadius: 42.5,
     borderWidth: 2,
     borderColor: colors.white,
   },

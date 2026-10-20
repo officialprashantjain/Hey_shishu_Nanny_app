@@ -1,9 +1,41 @@
 import api from './api';
 
 // ── Nanny Profile ────────────────────────────────────────────────
-export const getMyProfile      = ()       => api.get('/nanny/profile');
-export const createMyProfile   = (data)   => api.post('/nanny/profile', data);
-export const updateMyProfile   = (data)   => api.patch('/nanny/profile', data);
+export const getMyProfile = () => api.get('/nanny/profile');
+
+export const createMyProfile = (data) => {
+  const isFormData =
+    (typeof FormData !== 'undefined' && data instanceof FormData) ||
+    (data && typeof data === 'object' && Array.isArray(data._parts));
+
+  const config = isFormData
+    ? {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Accept: 'application/json',
+        },
+      }
+    : undefined;
+
+  return api.post('/nanny/profile', data, config);
+};
+
+export const updateMyProfile = (data) => {
+  const isFormData =
+    (typeof FormData !== 'undefined' && data instanceof FormData) ||
+    (data && typeof data === 'object' && Array.isArray(data._parts));
+
+  const config = isFormData
+    ? {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Accept: 'application/json',
+        },
+      }
+    : undefined;
+
+  return api.patch('/nanny/profile', data, config);
+};
 
 // ── Nanny Service Areas ──────────────────────────────────────────
 // POST body: { serviceAreaId, radiusKm }
