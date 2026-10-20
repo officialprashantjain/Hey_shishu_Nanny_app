@@ -8,9 +8,9 @@ import {
   ActivityIndicator,
   Platform,
   StatusBar,
-  SafeAreaView,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import Constants from 'expo-constants';
 import meetingService from '../../../src/services/meetingService';
@@ -86,6 +86,8 @@ let isGlobalAgoraInitialized = false;
 export default function NannyMeetingRoomScreen() {
   const { meetingId } = useLocalSearchParams();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const effectiveTopInset = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0);
 
   const agoraEngineRef = useRef(null);
   const eventHandlerRef = useRef(null);
@@ -535,34 +537,42 @@ export default function NannyMeetingRoomScreen() {
   const isScreenSharingActive = Boolean(screenUid);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0A0E12" />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#111827" translucent={true} />
 
-      {/* Top Navigation Bar */}
+      {/* Top Navigation Bar with Safe Area */}
       {controlsVisible && !isLandscapeView && (
-        <View style={styles.topBar}>
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {meeting?.title || 'HeyShishu Meeting'}
-            </Text>
-            <View style={styles.badgeRow}>
-              <View style={styles.liveBadge}>
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>LIVE</Text>
-              </View>
-              <Text style={styles.meetingTypeBadge}>
-                {isWebinar ? 'Webinar' : '1-to-1 Meeting'}
+        <SafeAreaView
+          edges={['top', 'left', 'right']}
+          style={[
+            styles.topSafeArea,
+            Platform.OS === 'android' && insets.top === 0 && { paddingTop: effectiveTopInset },
+          ]}
+        >
+          <View style={styles.topBar}>
+            <View style={styles.headerInfo}>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {meeting?.title || 'HeyShishu Meeting'}
               </Text>
+              <View style={styles.badgeRow}>
+                <View style={styles.liveBadge}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.liveText}>LIVE</Text>
+                </View>
+                <Text style={styles.meetingTypeBadge}>
+                  {isWebinar ? 'Webinar' : '1-to-1 Meeting'}
+                </Text>
+              </View>
             </View>
+            <TouchableOpacity
+              style={styles.closeHeaderBtn}
+              onPress={handleLeave}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.closeHeaderText}>✕</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.closeHeaderBtn}
-            onPress={handleLeave}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.closeHeaderText}>✕</Text>
-          </TouchableOpacity>
-        </View>
+        </SafeAreaView>
       )}
 
       {/* Main Video View Canvas */}
@@ -701,71 +711,79 @@ export default function NannyMeetingRoomScreen() {
         )}
       </Pressable>
 
-      {/* Bottom Control Bar */}
+      {/* Bottom Control Bar with Safe Area */}
       {controlsVisible && !isLandscapeView && (
-        <View style={styles.bottomBar}>
-          {isAudience ? (
-            // Webinar audience: Leave button & clean listening status
-            <View style={styles.audienceControls}>
-              <View style={styles.audienceInfo}>
-                <Text style={styles.audienceInfoIcon}>🎧</Text>
-                <Text style={styles.audienceInfoText} numberOfLines={1}>
-                  Listening as audience
-                </Text>
+        <SafeAreaView
+          edges={['bottom', 'left', 'right']}
+          style={[
+            styles.bottomSafeArea,
+            Platform.OS === 'android' && insets.bottom === 0 && { paddingBottom: 12 },
+          ]}
+        >
+          <View style={styles.bottomBar}>
+            {isAudience ? (
+              // Webinar audience: Leave button & clean listening status
+              <View style={styles.audienceControls}>
+                <View style={styles.audienceInfo}>
+                  <Text style={styles.audienceInfoIcon}>🎧</Text>
+                  <Text style={styles.audienceInfoText} numberOfLines={1}>
+                    Listening as audience
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.leaveButton}
+                  onPress={handleLeave}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.leaveButtonText}>Leave Webinar</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={styles.leaveButton}
-                onPress={handleLeave}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.leaveButtonText}>Leave Webinar</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            // 1-to-1 publisher: Mic, Camera, Flip Camera, and End Call
-            <View style={styles.oneToOneControls}>
-              <TouchableOpacity
-                style={[styles.controlButton, isMuted && styles.controlButtonActive]}
-                onPress={toggleMute}
-              >
-                <Text style={styles.controlButtonIcon}>{isMuted ? '🔇' : '🎙️'}</Text>
-                <Text style={styles.controlButtonLabel}>{isMuted ? 'Unmute' : 'Mute'}</Text>
-              </TouchableOpacity>
+            ) : (
+              // 1-to-1 publisher: Mic, Camera, Flip Camera, and End Call
+              <View style={styles.oneToOneControls}>
+                <TouchableOpacity
+                  style={[styles.controlButton, isMuted && styles.controlButtonActive]}
+                  onPress={toggleMute}
+                >
+                  <Text style={styles.controlButtonIcon}>{isMuted ? '🔇' : '🎙️'}</Text>
+                  <Text style={styles.controlButtonLabel}>{isMuted ? 'Unmute' : 'Mute'}</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.controlButton, isCameraOff && styles.controlButtonActive]}
-                onPress={toggleCamera}
-              >
-                <Text style={styles.controlButtonIcon}>{isCameraOff ? '🚫' : '📷'}</Text>
-                <Text style={styles.controlButtonLabel}>
-                  {isCameraOff ? 'Start Cam' : 'Stop Cam'}
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.controlButton, isCameraOff && styles.controlButtonActive]}
+                  onPress={toggleCamera}
+                >
+                  <Text style={styles.controlButtonIcon}>{isCameraOff ? '🚫' : '📷'}</Text>
+                  <Text style={styles.controlButtonLabel}>
+                    {isCameraOff ? 'Start Cam' : 'Stop Cam'}
+                  </Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.controlButton, isCameraOff && styles.controlButtonDisabled]}
-                onPress={switchCamera}
-                disabled={isCameraOff}
-              >
-                <Text style={styles.controlButtonIcon}>🔄</Text>
-                <Text style={styles.controlButtonLabel}>
-                  {isFrontCamera ? 'Flip Cam' : 'Front Cam'}
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.controlButton, isCameraOff && styles.controlButtonDisabled]}
+                  onPress={switchCamera}
+                  disabled={isCameraOff}
+                >
+                  <Text style={styles.controlButtonIcon}>🔄</Text>
+                  <Text style={styles.controlButtonLabel}>
+                    {isFrontCamera ? 'Flip Cam' : 'Front Cam'}
+                  </Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.endCallButton}
-                onPress={handleLeave}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.endCallButtonIcon}>📞</Text>
-                <Text style={styles.endCallButtonText}>Leave</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+                <TouchableOpacity
+                  style={styles.endCallButton}
+                  onPress={handleLeave}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.endCallButtonIcon}>📞</Text>
+                  <Text style={styles.endCallButtonText}>Leave</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </SafeAreaView>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -774,13 +792,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0A0E12',
   },
+  topSafeArea: {
+    backgroundColor: '#111827',
+    zIndex: 20,
+  },
+  bottomSafeArea: {
+    backgroundColor: '#111827',
+    zIndex: 20,
+  },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#111827',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingTop: 8,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.08)',
     zIndex: 20,
@@ -1054,7 +1081,8 @@ const styles = StyleSheet.create({
   bottomBar: {
     backgroundColor: '#111827',
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingTop: 10,
+    paddingBottom: 10,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.08)',
     zIndex: 20,

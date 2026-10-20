@@ -27,6 +27,10 @@ export default function MainLayout() {
         options={{ drawerItemStyle: { display: 'none' } }} 
       />
       <Drawer.Screen 
+        name="support/detail" 
+        options={{ drawerItemStyle: { display: 'none' } }} 
+      />
+      <Drawer.Screen 
         name="personal-info/index" 
         options={{ drawerItemStyle: { display: 'none' } }} 
       />

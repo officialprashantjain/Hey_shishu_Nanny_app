@@ -12,7 +12,7 @@ export default function CustomDrawerContent(props) {
 
   const menuItems = [
     { label: 'Home', icon: require('../../../assets/icons/drawer-home.svg'), route: '/(main)/(tabs)/requests' },
-    { label: 'Meetings', icon: require('../../../assets/icons/video-call-message.svg'), route: '/(main)/meetings' },
+    { label: 'Meetings', icon: require('../../../assets/icons/drawer-meetings.svg'), route: '/(main)/meetings' },
     { label: 'Messages', icon: require('../../../assets/icons/drawer-message.svg'), route: '/(main)/messages' },
     { label: 'Upcoming Jobs', icon: require('../../../assets/icons/drawer-bookings.svg'), route: '/(main)/(tabs)/upcoming' },
     { label: 'Earnings History', icon: require('../../../assets/icons/drawer-courses.svg'), route: '/(main)/earnings' },

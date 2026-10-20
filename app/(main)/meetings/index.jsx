@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   TouchableOpacity,
   RefreshControl,
@@ -12,7 +11,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CustomImage as Image } from '../../../src/components/common/CustomImage';
 import { colors } from '../../../constants/color';
 import { fonts } from '../../../constants/font';
@@ -28,6 +27,7 @@ const TABS = [
 export default function NannyMeetingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const effectiveTopInset = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0);
 
   const [activeTab, setActiveTab] = useState('all');
   const [meetings, setMeetings] = useState([]);
@@ -214,11 +214,17 @@ export default function NannyMeetingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+    <SafeAreaView
+      style={[
+        styles.container,
+        Platform.OS === 'android' && insets.top === 0 && { paddingTop: effectiveTopInset },
+      ]}
+      edges={['top', 'left', 'right']}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} translucent={true} />
 
       {/* Header */}
-      <View style={[styles.header, { paddingTop: Platform.OS === 'android' ? 14 : 4 }]}>
+      <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
@@ -279,7 +285,7 @@ export default function NannyMeetingsScreen() {
           renderItem={renderMeetingCard}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: insets.bottom + 24 },
+            { paddingBottom: Math.max(insets.bottom, 16) + 24 },
           ]}
           refreshControl={
             <RefreshControl
@@ -320,6 +326,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 18,
+    paddingTop: 8,
     paddingBottom: 12,
     backgroundColor: colors.background,
   },
