@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.prakhar9129.heyshishu-nannyapp",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Nanny App needs your location to show your live position to parents.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Nanny App needs location to track your route.",
@@ -35,7 +35,7 @@
       "navigationBarTranslucent": true,
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyCyNAW5GlsMpBGylWnbhzzCl9AjPt490Oo"
+          "apiKey": "AIzaSyCnEoSKrvhVCjBOywvoxVe7O8dCFBCVp2s"
         }
       },
       "permissions": [

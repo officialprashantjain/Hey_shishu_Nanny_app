@@ -180,9 +180,9 @@ export const startDailyShift = createAsyncThunk(
 
 export const endDailyShift = createAsyncThunk(
   'booking/endDailyShift',
-  async ({ shiftId }, { rejectWithValue }) => {
+  async ({ shiftId, otp }, { rejectWithValue }) => {
     try {
-      const response = await endShiftApi(shiftId);
+      const response = await endShiftApi(shiftId, otp);
       if (response?.status === 'success') {
         return { shift: response.data.shift, isFullyCompleted: response.data.isBookingFullyCompleted };
       }

@@ -13,6 +13,7 @@ import { fonts } from '../../../../constants/font';
 import { useRouter } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchOnrunningBookings, completeSessionBooking, selectOnrunningBookings, selectBookingLoading, selectActiveShift, endDailyShift } from '../../../../src/redux/slices/bookingSlice';
+import { sendEndOtpApi } from '../../../../src/services/bookingService';
 import { useAlert } from '../../../../src/contexts/AlertContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo } from 'react';
@@ -98,7 +99,42 @@ export default function ServiceScreen() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showSosModal, setShowSosModal] = useState(false);
   const [otp, setOtp] = useState(['', '', '', '']);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+  const [maskedPhone, setMaskedPhone] = useState('');
   const otpRefs = useRef([]);
+
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const interval = setInterval(() => {
+      setResendTimer((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  const sendEndOtpToParent = async () => {
+    if (!ACTIVE_JOB || sendingOtp) return;
+    try {
+      setSendingOtp(true);
+      const res = await sendEndOtpApi(ACTIVE_JOB.id, ACTIVE_JOB.shiftId);
+      if (res?.data?.data?.maskedPhone) {
+        setMaskedPhone(res.data.data.maskedPhone);
+      }
+      setResendTimer(45);
+      showAlert('Code Sent! ✨', `A 4-digit completion code was sent to the parent's mobile ${res?.data?.data?.maskedPhone ? `(${res.data.data.maskedPhone})` : ''} via SMS.`);
+    } catch (err) {
+      showAlert('Error', err?.response?.data?.message || 'Could not send completion code to parent.');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleOpenEndOtpModal = async () => {
+    if (!ACTIVE_JOB) return;
+    setShowOtpModal(true);
+    setOtp(['', '', '', '']);
+    await sendEndOtpToParent();
+  };
 
   // ── Timer & Wave States ───────────────────────────────────────────────────
   const [timeLeft, setTimeLeft] = useState(120); // 2 minutes countdown
@@ -230,7 +266,7 @@ export default function ServiceScreen() {
     try {
       if (ACTIVE_JOB.isShift) {
         // Multi-Day / Shift completion flow
-        const resultAction = await dispatch(endDailyShift({ shiftId: ACTIVE_JOB.shiftId }));
+        const resultAction = await dispatch(endDailyShift({ shiftId: ACTIVE_JOB.shiftId, otp: enteredOtp }));
         if (endDailyShift.fulfilled.match(resultAction)) {
            setShowOtpModal(false);
            setOtp(['', '', '', '']);
@@ -239,7 +275,7 @@ export default function ServiceScreen() {
               // Master Booking is done
            }
         } else {
-           showAlert('Error', resultAction.payload || 'Failed to complete daily shift.');
+           showAlert('Error', resultAction.payload || 'Incorrect completion code or failed to complete daily shift.');
         }
       } else {
         // Classic Session flow
@@ -249,7 +285,7 @@ export default function ServiceScreen() {
             setOtp(['', '', '', '']);
             setShowSuccessModal(true);
         } else {
-            showAlert('Error', resultAction.payload || 'Incorrect completion OTP');
+            showAlert('Error', resultAction.payload || 'Incorrect completion code');
         }
       }
     } catch(e) {
@@ -386,7 +422,7 @@ export default function ServiceScreen() {
           title={ACTIVE_JOB.isShift
             ? (ACTIVE_JOB.isFinalShift ? "Complete Final Booking" : "End Today's Shift") 
             : "Service Completed"}
-          onPress={() => setShowOtpModal(true)}
+          onPress={handleOpenEndOtpModal}
           style={{
             marginTop: 20,
             marginBottom: 40,
@@ -419,7 +455,9 @@ export default function ServiceScreen() {
 
             <Text style={styles.modalTitle}>Complete the Session</Text>
             <Text style={styles.modalSub}>
-              Ask the parent for the final 4-digit completion code to securely close this session.
+              Ask <Text style={{ fontFamily: fonts.rubikBold, color: colors.primary }}>
+                {ACTIVE_JOB.parentName || 'the parent'}
+              </Text> for the final 4-digit completion code sent to their mobile {maskedPhone ? `(${maskedPhone})` : ''} to securely close this session.
             </Text>
 
             <View style={styles.otpRow}>
@@ -436,6 +474,20 @@ export default function ServiceScreen() {
                 />
               ))}
             </View>
+
+            <TouchableOpacity
+              style={styles.resendBtnRow}
+              onPress={sendEndOtpToParent}
+              disabled={resendTimer > 0 || sendingOtp}
+            >
+              <Text style={styles.resendPrompt}>Didn't receive code? </Text>
+              <Text style={[styles.resendAction, (resendTimer > 0 || sendingOtp) && { opacity: 0.5 }]}>
+                {sendingOtp ? 'Sending...' : 'Resend to Parent'}
+              </Text>
+              {resendTimer > 0 && (
+                <Text style={styles.resendPrompt}> in {resendTimer}s</Text>
+              )}
+            </TouchableOpacity>
 
             <CustomButton
               title="Verify & End Service"
@@ -942,5 +994,21 @@ const styles = StyleSheet.create({
   },
   sosCancelText: {
     fontFamily: fonts.rubikBold, fontSize: 16, color: colors.description,
+  },
+  resendBtnRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  resendPrompt: {
+    fontFamily: fonts.rubik,
+    fontSize: 14,
+    color: colors.description,
+  },
+  resendAction: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 14,
+    color: colors.primary,
   },
 });

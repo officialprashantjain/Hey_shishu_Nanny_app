@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { CustomButton } from '../../../../src/components/common/CustomButton';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchOngoingBookings, startRunningBooking, selectOngoingBookings, selectBookingLoading, selectActiveShift, startDailyShift, selectConfirmedBookings, selectOnrunningBookings, fetchOnrunningBookings } from '../../../../src/redux/slices/bookingSlice';
+import { sendStartOtpApi } from '../../../../src/services/bookingService';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo } from 'react';
 import { useAlert } from '../../../../src/contexts/AlertContext';
@@ -107,7 +108,42 @@ export default function OnTheWayScreen() {
   const [otp, setOtp] = useState(['', '', '', '']);
   const [routePoints, setRoutePoints] = useState([]);
   const [travelStats, setTravelStats] = useState({ distance: '--', duration: '--' });
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+  const [maskedPhone, setMaskedPhone] = useState('');
   const otpRefs = useRef([]);
+
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const interval = setInterval(() => {
+      setResendTimer((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  const sendStartOtpToParent = async () => {
+    if (!ACTIVE_JOB || sendingOtp) return;
+    try {
+      setSendingOtp(true);
+      const res = await sendStartOtpApi(ACTIVE_JOB.id, ACTIVE_JOB.shiftId);
+      if (res?.data?.data?.maskedPhone) {
+        setMaskedPhone(res.data.data.maskedPhone);
+      }
+      setResendTimer(45);
+      showAlert('Code Sent! ✨', `A 4-digit verification OTP was sent to the parent's phone ${res?.data?.data?.maskedPhone ? `(${res.data.data.maskedPhone})` : ''} via SMS.`);
+    } catch (err) {
+      showAlert('Error', err?.response?.data?.message || 'Could not send verification OTP to parent.');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleOpenArrivalOtpModal = async () => {
+    if (!ACTIVE_JOB) return;
+    setShowOtpModal(true);
+    setOtp(['', '', '', '']);
+    await sendStartOtpToParent();
+  };
 
   // Fetch route from OSRM (Open Source Routing Machine) - Free
   const fetchOSRMRoute = async (start, end) => {
@@ -424,7 +460,7 @@ export default function OnTheWayScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.arriveBtn} onPress={() => setShowOtpModal(true)}>
+        <TouchableOpacity style={styles.arriveBtn} onPress={handleOpenArrivalOtpModal}>
           <Text style={styles.arriveBtnText}>I Have Reached</Text>
         </TouchableOpacity>
 
@@ -454,8 +490,8 @@ export default function OnTheWayScreen() {
             <Text style={styles.modalTitle}>Arrival Verification</Text>
             <Text style={styles.modalSub}>
               Ask <Text style={{ fontFamily: fonts.rubikBold, color: colors.primary }}>
-                {ACTIVE_JOB.parentName}
-              </Text> for the 4-digit OTP to confirm you have arrived.
+                {ACTIVE_JOB?.parentName || 'Parent'}
+              </Text> for the 4-digit OTP sent to their mobile {maskedPhone ? `(${maskedPhone})` : ''} to confirm you have arrived.
             </Text>
 
             <View style={styles.otpRow}>
@@ -472,6 +508,20 @@ export default function OnTheWayScreen() {
                 />
               ))}
             </View>
+
+            <TouchableOpacity
+              style={styles.resendBtnRow}
+              onPress={sendStartOtpToParent}
+              disabled={resendTimer > 0 || sendingOtp}
+            >
+              <Text style={styles.resendPrompt}>Didn't receive code? </Text>
+              <Text style={[styles.resendAction, (resendTimer > 0 || sendingOtp) && { opacity: 0.5 }]}>
+                {sendingOtp ? 'Sending...' : 'Resend to Parent'}
+              </Text>
+              {resendTimer > 0 && (
+                <Text style={styles.resendPrompt}> in {resendTimer}s</Text>
+              )}
+            </TouchableOpacity>
 
             <CustomButton
               title="Verify & Start Session"
@@ -750,6 +800,22 @@ const styles = StyleSheet.create({
   },
   cancelLink: { alignItems: 'center', padding: 8 },
   cancelText: { fontFamily: fonts.rubik, fontSize: 15, color: colors.description },
+  resendBtnRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  resendPrompt: {
+    fontFamily: fonts.rubik,
+    fontSize: 14,
+    color: colors.description,
+  },
+  resendAction: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 14,
+    color: colors.primary,
+  },
 
   // Center Modal styles for Audio Pre-prompt
   modalOverlayCenter: {

@@ -101,12 +101,12 @@ export default function ProfileScreen() {
       icon: require("../../../assets/icons/lock.svg"),
       route: "/(main)/login-security",
     },
-    {
-      label: "Delete Account",
-      icon: require("../../../assets/icons/delete-account.svg"),
-      route: "/(main)/delete-account",
-      isDanger: true,
-    },
+    // {
+    //   label: "Delete Account",
+    //   icon: require("../../../assets/icons/delete-account.svg"),
+    //   route: "/(main)/delete-account",
+    //   isDanger: true,
+    // },
     {
       label: "Logout",
       icon: require("../../../assets/icons/logout.svg"),

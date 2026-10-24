@@ -58,3 +58,7 @@ export const updateWorkingSchedule = (data) => api.post('/nanny/schedule', data)
 export const getLeaves   = ()     => api.get('/nanny/leaves');
 export const addLeave    = (data) => api.post('/nanny/leaves', data);
 export const deleteLeave = (id)   => api.delete('/nanny/leaves/' + id);
+
+// ── Reviews & Ratings ─────────────────────────────────────────────
+export const getMyReviews = () => api.get('/nanny/reviews');
+

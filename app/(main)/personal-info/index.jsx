@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { CustomImage as Image } from "../../../src/components/common/CustomImage";
 import { useRouter } from "expo-router";
 import { useDispatch, useSelector } from "react-redux";
@@ -46,6 +46,7 @@ const SKILL_OPTIONS = [
 export default function PersonalInfoScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
   const profile = useSelector(selectProfile);
   const user = useSelector(selectUser);     // { fullName, email, phoneNumber }
   const isSaving = useSelector(selectProfileSaving);
@@ -120,6 +121,8 @@ export default function PersonalInfoScreen() {
     }
   };
 
+  const footerBottomPadding = Math.max(insets.bottom, 16);
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -142,6 +145,7 @@ export default function PersonalInfoScreen() {
       </SafeAreaView>
 
       <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -230,11 +234,12 @@ export default function PersonalInfoScreen() {
       </ScrollView>
 
       {/* ── Footer Save Button ───────────────────────────────────────────────── */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: footerBottomPadding }]}>
         <TouchableOpacity
           style={[styles.saveBtn, isSaving && { opacity: 0.7 }]}
           onPress={handleSave}
           disabled={isSaving}
+          activeOpacity={0.8}
         >
           {isSaving ? (
             <ActivityIndicator color={colors.white} />
@@ -283,7 +288,8 @@ const styles = StyleSheet.create({
   backButton: { padding: 5, marginRight: 10, justifyContent: "center" },
   backIcon: { width: 14, height: 14, tintColor: colors.description },
   headerTitle: { fontFamily: fonts.rubikBold, fontSize: 20, color: colors.description, flex: 1 },
-  scrollContent: { padding: 20, paddingBottom: 120 },
+  scrollView: { flex: 1 },
+  scrollContent: { padding: 20, paddingBottom: 24 },
   sectionCard: {
     backgroundColor: colors.white,
     borderRadius: 24,
@@ -365,19 +371,18 @@ const styles = StyleSheet.create({
   chipTextSelected: { fontFamily: fonts.rubikBold, color: colors.primary },
   // Footer
   footer: {
-    position: "absolute",
-    bottom: 0,
-    width: "100%",
-    padding: 20,
     backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: "#E2E8F0",
+    paddingHorizontal: 20,
+    paddingTop: 12,
   },
   saveBtn: {
     backgroundColor: colors.secondary,
-    paddingVertical: 18,
+    paddingVertical: 16,
     borderRadius: 30,
     alignItems: "center",
+    justifyContent: "center",
   },
   saveBtnText: { fontFamily: fonts.rubikBold, fontSize: 16, color: colors.white },
 });
