@@ -30,6 +30,11 @@ export const getCancelledBookings = async () => {
   return await api.get('/nanny/bookings?status=cancelled');
 };
 
+// GET /api/v1/nanny/bookings/:id
+export const getBookingDetailAsNanny = async (id) => {
+  return await api.get(`/nanny/bookings/${id}`);
+};
+
 // PATCH /api/v1/nanny/bookings/:id/start
 export const startBookingApi = async (id) => {
   return await api.patch(`/nanny/bookings/${id}/start`);

@@ -18,6 +18,9 @@ import { sendStartOtpApi } from '../../../../src/services/bookingService';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo } from 'react';
 import { useAlert } from '../../../../src/contexts/AlertContext';
+import callService from '../../../../src/services/callService';
+import { promptAndStartCall } from '../../../../src/utils/callLauncher';
+import { resolveParentName, resolveParentPhone } from '../../../../src/utils/parentHelper';
 
 const { width } = Dimensions.get('window');
 
@@ -57,12 +60,14 @@ export default function OnTheWayScreen() {
          id: parentBooking._id,
          isShift: true,
          shiftId: activeShift._id,
+         parentId: parentBooking.parentId?._id || parentBooking.parentId,
          childName: parentBooking.childIds?.[0]?.firstName || 'Aarav Mehta',
          childAge: parentBooking.childIds?.[0]?.age ? `${parentBooking.childIds[0].age} Years Old` : '2.5 Years Old',
          childPhoto: require('../../../../assets/icons/nanny-image.svg'),
-         parentName: parentBooking.parentId?.fullName || 'Sneha Sharma',
-         parentPhoto: require('../../../../assets/icons/nanny-image.svg'),
-         address: parentBooking.address?.fullAddress || `${parentBooking.address?.area || ''} ${parentBooking.address?.city || ''}`,
+         parentName: resolveParentName(parentBooking.parentId, parentBooking.contactNumber),
+         parentPhone: resolveParentPhone(parentBooking.parentId, parentBooking.contactNumber),
+         parentPhoto: parentBooking.parentId?.profileImage?.url || parentBooking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
+         address: parentBooking.address?.fullAddress || `${parentBooking.address?.area || ''} ${parentBooking.address?.city || ''}`.trim(),
          distance: '1.8 km',
          childNotes: parentBooking.parentNotes || '',
          date: new Date(activeShift.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -82,12 +87,14 @@ export default function OnTheWayScreen() {
     const end = new Date(booking.endDateTime);
     return {
       id: booking._id,
+      parentId: booking.parentId?._id || booking.parentId,
       childName: booking.childIds?.[0]?.firstName || 'Aarav Mehta',
       childAge: booking.childIds?.[0]?.age ? `${booking.childIds[0].age} Years Old` : '2.5 Years Old',
       childPhoto: require('../../../../assets/icons/nanny-image.svg'),
-      parentName: booking.parentId?.fullName || 'Sneha Sharma',
-      parentPhoto: require('../../../../assets/icons/nanny-image.svg'),
-      address: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`,
+      parentName: resolveParentName(booking.parentId, booking.contactNumber),
+      parentPhone: resolveParentPhone(booking.parentId, booking.contactNumber),
+      parentPhoto: booking.parentId?.profileImage?.url || booking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
+      address: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`.trim(),
       distance: '1.8 km',
       childNotes: booking.parentNotes || '',
       date: start.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -98,7 +105,7 @@ export default function OnTheWayScreen() {
       },
       fullAddress: booking.address?.fullAddress || '',
     };
-  }, [ongoingBookings]);
+  }, [ongoingBookings, confirmedBookings, onrunningBookings, activeShift]);
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [nannyLocation, setNannyLocation] = useState(null);   // live GPS
@@ -382,7 +389,9 @@ export default function OnTheWayScreen() {
               pathname: '/(main)/booking-details',
               params: {
                 id: ACTIVE_JOB.id,
+                parentId: ACTIVE_JOB.parentId,
                 parentName: ACTIVE_JOB.parentName,
+                parentPhone: ACTIVE_JOB.parentPhone,
                 parentPhoto: ACTIVE_JOB.parentPhoto,
                 address: ACTIVE_JOB.address,
                 distance: ACTIVE_JOB.distance,
@@ -407,10 +416,31 @@ export default function OnTheWayScreen() {
             <Text style={styles.addressText} numberOfLines={1}>{ACTIVE_JOB.address}</Text>
           </View>
           <View style={styles.iconActions}>
-            <TouchableOpacity style={styles.iconBtn} onPress={() => router.push({ pathname: '/(main)/messages/chat', params: { name: ACTIVE_JOB.parentName, subject: 'Babysitting' } })}>
+            <TouchableOpacity 
+              style={styles.iconBtn} 
+              onPress={() => router.push({ 
+                pathname: '/(main)/messages/chat', 
+                params: { 
+                  name: ACTIVE_JOB.parentName, 
+                  parentId: ACTIVE_JOB.parentId,
+                  receiverId: ACTIVE_JOB.parentId,
+                  subject: 'Babysitting' 
+                } 
+              })}
+            >
               <Ionicons name="chatbubble-ellipses" size={20} color={colors.primary} />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.iconBtn, styles.callCircleBtn]} onPress={() => router.push('/(main)/messages/incoming_call')}>
+            <TouchableOpacity 
+              style={[styles.iconBtn, styles.callCircleBtn]} 
+              onPress={() => promptAndStartCall({
+                router,
+                receiverId: ACTIVE_JOB.parentId,
+                receiverName: ACTIVE_JOB.parentName,
+                receiverPhoto: ACTIVE_JOB.parentPhoto,
+                bookingId: ACTIVE_JOB.id,
+                phone: ACTIVE_JOB.parentPhone,
+              })}
+            >
               <Ionicons name="call" size={18} color={colors.white} />
             </TouchableOpacity>
           </View>

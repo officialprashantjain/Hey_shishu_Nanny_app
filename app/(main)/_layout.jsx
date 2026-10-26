@@ -1,19 +1,22 @@
 import { Drawer } from 'expo-router/drawer';
 import CustomDrawerContent from '../../src/components/layout/CustomDrawerContent';
 import { colors } from '../../constants/color';
+import IncomingCallWatcher from '../../src/components/common/IncomingCallWatcher';
 
 export default function MainLayout() {
   return (
-    <Drawer
-      drawerContent={(props) => <CustomDrawerContent {...props} />}
-      screenOptions={{
-        headerShown: false,
-        drawerStyle: {
-          width: '75%',
-          backgroundColor: colors.background,
-        },
-      }}
-    >
+    <>
+      <IncomingCallWatcher />
+      <Drawer
+        drawerContent={(props) => <CustomDrawerContent {...props} />}
+        screenOptions={{
+          headerShown: false,
+          drawerStyle: {
+            width: '75%',
+            backgroundColor: colors.background,
+          },
+        }}
+      >
       <Drawer.Screen 
         name="(tabs)" 
         options={{ drawerLabel: 'Main' }} 
@@ -83,5 +86,6 @@ export default function MainLayout() {
         options={{ drawerItemStyle: { display: 'none' }, unmountOnBlur: true }} 
       />
     </Drawer>
+  </>
   );
 }

@@ -10,6 +10,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchConfirmedBookings, fetchOnrunningBookings, startBooking, selectConfirmedBookings, selectOnrunningBookings, selectBookingLoading, fetchTodayShiftContext } from '../../../../src/redux/slices/bookingSlice';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAlert } from '../../../../src/contexts/AlertContext';
+import { promptAndStartCall } from '../../../../src/utils/callLauncher';
+import { resolveParentName, resolveParentPhone } from '../../../../src/utils/parentHelper';
 
 export default function UpcomingBookingScreen() {
   const router = useRouter();
@@ -94,23 +96,35 @@ export default function UpcomingBookingScreen() {
       distance: '1.8 km', 
       childNotes: booking.parentNotes || '',
       childPhoto: require('../../../../assets/icons/nanny-image.svg'), // Using fallback image that exists
-      parentPhoto: require('../../../../assets/icons/nanny-image.svg'), // Using dummy fallback
+      parentPhoto: booking.parentId?.profileImage?.url || booking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
       
-      fullAddress: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`,
-      parentName: booking.parentId?.fullName || 'Sneha Sharma',
-      parentPhone: booking.contactNumber || booking.parentId?.phoneNumber || '',
+      parentId: booking.parentId?._id || booking.parentId,
+      fullAddress: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`.trim(),
+      parentName: resolveParentName(booking.parentId, booking.contactNumber),
+      parentPhone: resolveParentPhone(booking.parentId, booking.contactNumber),
     };
   };
 
-  const handleMessageParent = (parentName) => {
+  const handleMessageParent = (item) => {
     router.push({
       pathname: '/(main)/messages/chat',
-      params: { name: parentName, subject: 'Babysitting' }
+      params: { 
+        name: item.parentName, 
+        parentId: item.parentId,
+        receiverId: item.parentId,
+        subject: 'Babysitting' 
+      }
     });
   };
 
-  const handleCallParent = (parentName) => {
-    router.push('/(main)/messages/incoming_call');
+  const handleCallParent = (item) => {
+    promptAndStartCall({
+      router,
+      receiverId: item.parentId,
+      receiverName: item.parentName,
+      bookingId: item.id,
+      phone: item.parentPhone,
+    });
   };
 
   const handleViewDetails = (mappedBooking) => {
@@ -118,13 +132,15 @@ export default function UpcomingBookingScreen() {
       pathname: '/(main)/booking-details',
       params: {
         id: mappedBooking.id,
+        parentId: mappedBooking.parentId,
         parentName: mappedBooking.parentName,
-        parentPhoto: 'https://xsgames.co/randomusers/assets/avatars/male/12.jpg',
+        parentPhone: mappedBooking.parentPhone,
+        parentPhoto: mappedBooking.parentPhoto,
         address: mappedBooking.fullAddress,
         distance: mappedBooking.distance,
         childName: mappedBooking.childName,
         childAge: mappedBooking.childAge,
-        childPhoto: 'https://xsgames.co/randomusers/assets/avatars/male/40.jpg',
+        childPhoto: mappedBooking.childPhoto,
         childNotes: mappedBooking.childNotes,
         date: mappedBooking.date,
         time: mappedBooking.time,
@@ -172,8 +188,8 @@ export default function UpcomingBookingScreen() {
               key={mapped.id} 
               data={mapped} 
               onStartJourney={() => handleStartJourneyClick(mapped.id)} 
-              onMessage={() => handleMessageParent(mapped.parentName)}
-              onCall={() => handleCallParent(mapped.parentName)}
+              onMessage={() => handleMessageParent(mapped)}
+              onCall={() => handleCallParent(mapped)}
               onViewDetails={() => handleViewDetails(mapped)}
             />
           );

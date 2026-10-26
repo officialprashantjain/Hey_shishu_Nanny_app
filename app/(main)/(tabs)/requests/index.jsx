@@ -8,6 +8,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchPendingBookings, fetchCompletedBookings, fetchCancelledBookings, setBookingStatus, selectPendingBookings, selectCompletedBookings, selectCancelledBookings, selectBookingLoading } from '../../../../src/redux/slices/bookingSlice';
 import { useAlert } from '../../../../src/contexts/AlertContext';
 import { useFocusEffect } from '@react-navigation/native';
+import { resolveParentName, resolveParentPhone } from '../../../../src/utils/parentHelper';
 
 export default function RequestsScreen() {
   const router = useRouter();
@@ -103,11 +104,13 @@ export default function RequestsScreen() {
       distance: '1.8 km', 
       totalAmount: booking.totalAmount != null ? `₹${booking.totalAmount}` : null,
       notes: booking.parentNotes || '',
-      photo: require('../../../../assets/icons/nanny-image.svg'), // Using fallback image that exists
+      photo: require('../../../../assets/icons/nanny-image.svg'),
       
-      fullAddress: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`,
-      parentName: booking.parentId?.fullName || 'Sneha Sharma',
-      parentPhone: booking.contactNumber || booking.parentId?.phoneNumber || '',
+      parentId: booking.parentId?._id || booking.parentId,
+      fullAddress: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`.trim(),
+      parentName: resolveParentName(booking.parentId, booking.contactNumber),
+      parentPhone: resolveParentPhone(booking.parentId, booking.contactNumber),
+      parentPhoto: booking.parentId?.profileImage?.url || booking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
     };
   };
 
@@ -116,13 +119,15 @@ export default function RequestsScreen() {
       pathname: '/(main)/booking-details',
       params: {
         id: mappedBooking.id,
+        parentId: mappedBooking.parentId,
         parentName: mappedBooking.parentName,
-        parentPhoto: 'https://xsgames.co/randomusers/assets/avatars/male/12.jpg',
+        parentPhone: mappedBooking.parentPhone,
+        parentPhoto: mappedBooking.parentPhoto,
         address: mappedBooking.fullAddress,
         distance: mappedBooking.distance,
         childName: mappedBooking.childName,
         childAge: mappedBooking.age,
-        childPhoto: 'https://xsgames.co/randomusers/assets/avatars/male/40.jpg',
+        childPhoto: mappedBooking.photo,
         childNotes: mappedBooking.notes,
         date: mappedBooking.date,
         time: mappedBooking.time,

@@ -17,6 +17,8 @@ import { sendEndOtpApi } from '../../../../src/services/bookingService';
 import { useAlert } from '../../../../src/contexts/AlertContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo } from 'react';
+import { promptAndStartCall } from '../../../../src/utils/callLauncher';
+import { resolveParentName, resolveParentPhone } from '../../../../src/utils/parentHelper';
 
 // ── Dummy Active Context ───────────────────────────────────────────────────
 export default function ServiceScreen() {
@@ -47,13 +49,15 @@ export default function ServiceScreen() {
          id: parentBooking._id,
          isShift: true,
          shiftId: activeShift._id,
+         parentId: parentBooking.parentId?._id || parentBooking.parentId,
          isFinalShift: activeShift.shiftNumber === activeShift.totalShifts,
          childName: parentBooking.childIds?.[0]?.firstName || 'Aarav Mehta',
          childAge: parentBooking.childIds?.[0]?.age ? `${parentBooking.childIds[0].age} Years Old` : '2.5 Years Old',
          childPhoto: require('../../../../assets/icons/nanny-image.svg'),
-         parentName: parentBooking.parentId?.fullName || 'Sneha Sharma',
-         parentPhoto: require('../../../../assets/icons/nanny-image.svg'),
-         address: parentBooking.address?.fullAddress || `${parentBooking.address?.area || ''} ${parentBooking.address?.city || ''}`,
+         parentName: resolveParentName(parentBooking.parentId, parentBooking.contactNumber),
+         parentPhone: resolveParentPhone(parentBooking.parentId, parentBooking.contactNumber),
+         parentPhoto: parentBooking.parentId?.profileImage?.url || parentBooking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
+         address: parentBooking.address?.fullAddress || `${parentBooking.address?.area || ''} ${parentBooking.address?.city || ''}`.trim(),
          distance: '1.8 km',
          startTime: start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' }),
          totalHours: `${totalHours} Hours`,
@@ -74,12 +78,14 @@ export default function ServiceScreen() {
     
     return {
       id: booking._id,
+      parentId: booking.parentId?._id || booking.parentId,
       childName: booking.childIds?.[0]?.firstName || 'Aarav Mehta',
       childAge: booking.childIds?.[0]?.age ? `${booking.childIds[0].age} Years Old` : '2.5 Years Old',
       childPhoto: require('../../../../assets/icons/nanny-image.svg'),
-      parentName: booking.parentId?.fullName || 'Sneha Sharma',
-      parentPhoto: require('../../../../assets/icons/nanny-image.svg'),
-      address: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`,
+      parentName: resolveParentName(booking.parentId, booking.contactNumber),
+      parentPhone: resolveParentPhone(booking.parentId, booking.contactNumber),
+      parentPhoto: booking.parentId?.profileImage?.url || booking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
+      address: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`.trim(),
       distance: '1.8 km',
       startTime: start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' }),
       totalHours: `${totalHours} Hours`,
@@ -89,7 +95,7 @@ export default function ServiceScreen() {
       startDateTime: booking.startDateTime,
       endDateTime: booking.endDateTime,
     };
-  }, [onrunningBookings]);
+  }, [onrunningBookings, activeShift]);
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [micPermissionGranted, setMicPermissionGranted] = useState(false);
@@ -334,7 +340,9 @@ export default function ServiceScreen() {
               pathname: '/(main)/booking-details',
               params: {
                 id: ACTIVE_JOB.id,
+                parentId: ACTIVE_JOB.parentId,
                 parentName: ACTIVE_JOB.parentName,
+                parentPhone: ACTIVE_JOB.parentPhone,
                 parentPhoto: ACTIVE_JOB.parentPhoto,
                 address: ACTIVE_JOB.address,
                 distance: ACTIVE_JOB.distance,
@@ -564,12 +572,22 @@ export default function ServiceScreen() {
 
             <TouchableOpacity 
               style={[styles.sosActionBtn, { backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#EAEAEA' }]} 
-              onPress={() => { setShowSosModal(false); router.push('/(main)/messages/incoming_call'); }}
+              onPress={() => {
+                setShowSosModal(false);
+                promptAndStartCall({
+                  router,
+                  receiverId: ACTIVE_JOB.parentId,
+                  receiverName: ACTIVE_JOB.parentName,
+                  receiverPhoto: ACTIVE_JOB.parentPhoto,
+                  bookingId: ACTIVE_JOB.id,
+                  phone: ACTIVE_JOB.parentPhone,
+                });
+              }}
             >
               <Ionicons name="call-outline" size={24} color={colors.primary} />
               <View style={{ marginLeft: 16 }}>
                 <Text style={styles.sosActionTitleDark}>Call Parent</Text>
-                <Text style={styles.sosActionSubDark}>{ACTIVE_JOB.parentName}</Text>
+                <Text style={styles.sosActionSubDark}>{ACTIVE_JOB.parentName}{ACTIVE_JOB.parentPhone ? ` (${ACTIVE_JOB.parentPhone})` : ''}</Text>
               </View>
             </TouchableOpacity>
 

@@ -5,21 +5,44 @@ import {
   StyleSheet, 
   TouchableOpacity, 
   Dimensions, 
-  Animated 
+  Animated,
+  Alert,
+  Vibration
 } from 'react-native';
+import { Audio } from 'expo-av';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CustomImage as Image } from '../../../src/components/common/CustomImage';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors } from '../../../constants/color';
 import { fonts } from '../../../constants/font';
+import callService from '../../../src/services/callService';
 
 const { width } = Dimensions.get('window');
 
 export default function IncomingCallScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+
+  const callId = params.callId;
+  const callerName = params.callerName || 'Parent';
+  const callerPhoto = params.callerPhoto || null;
+  const callType = params.callType === 'audio' ? 'audio' : 'video';
+  const channelName = params.channelName;
 
   const pulse1 = useRef(new Animated.Value(1)).current;
   const pulse2 = useRef(new Animated.Value(1)).current;
+  const soundRef = useRef(null);
+
+  const stopRinging = () => {
+    try {
+      Vibration.cancel();
+      if (soundRef.current) {
+        soundRef.current.stopAsync().catch(() => {});
+        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+    } catch (e) {}
+  };
 
   useEffect(() => {
     Animated.loop(
@@ -51,26 +74,123 @@ export default function IncomingCallScreen() {
         })
       ])
     ).start();
+
+    // Start vibration pattern: delay 0ms, vibrate 1000ms, wait 1000ms...
+    Vibration.vibrate([0, 1000, 1000, 1000], true);
+
+    // Play ringing audio sound
+    let isMounted = true;
+    const playRingTone = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+        });
+
+        let soundObj = null;
+        try {
+          const res = await Audio.Sound.createAsync(
+            require('../../../assets/sounds/ringtone.mp3'),
+            { shouldPlay: true, isLooping: true, volume: 1.0 }
+          );
+          soundObj = res.sound;
+        } catch (localErr) {
+          // Fallback if local asset is not bundled yet
+          const res = await Audio.Sound.createAsync(
+            { uri: 'https://assets.mixkit.co/active_storage/sfx/2874/2874-preview.mp3' },
+            { shouldPlay: true, isLooping: true, volume: 1.0 }
+          );
+          soundObj = res.sound;
+        }
+
+        if (isMounted && soundObj) {
+          soundRef.current = soundObj;
+        } else if (soundObj) {
+          await soundObj.unloadAsync();
+        }
+      } catch (audioErr) {
+        console.warn('⚠️ [IncomingCall] Ringtone audio playback warning:', audioErr.message);
+      }
+    };
+
+    playRingTone();
+
+    return () => {
+      isMounted = false;
+      stopRinging();
+    };
   }, []);
+
+  useEffect(() => {
+    console.log(`\n🔔 [INCOMING CALL SCREEN] Ringing incoming ${callType.toUpperCase()} call from "${callerName}" (Call ID: ${callId || 'test'})`);
+  }, [callId, callerName, callType]);
 
   const autoDeclineTimer = useRef(null);
 
   useEffect(() => {
-    autoDeclineTimer.current = setTimeout(() => {
-      router.push('/(main)/messages/no_response');
-    }, 10 * 1000);
+    // 35-second auto decline if unattended
+    autoDeclineTimer.current = setTimeout(async () => {
+      console.log(`⏱️ [Incoming Call Auto-Timeout] 35s expired without answer for call: ${callId}`);
+      stopRinging();
+      if (callId) {
+        try {
+          await callService.declineCall(callId);
+        } catch (e) {}
+      }
+      router.replace('/(main)/messages/no_response');
+    }, 35 * 1000);
 
-    return () => clearTimeout(autoDeclineTimer.current);
-  }, []);
+    return () => {
+      clearTimeout(autoDeclineTimer.current);
+    };
+  }, [callId]);
 
-  const handleHangup = () => {
+  const handleHangup = async () => {
+    console.log(`❌ [Incoming Call Declined] User declined call from ${callerName}`);
+    stopRinging();
     clearTimeout(autoDeclineTimer.current);
-    router.push('/(main)/messages/chat');
+    if (callId) {
+      try {
+        await callService.declineCall(callId);
+      } catch (e) {
+        console.warn('[Decline Call API] error:', e.message);
+      }
+    }
+    router.replace('/(main)/messages/chat');
   };
 
-  const handleAccept = () => {
+  const handleAccept = async () => {
+    console.log(`✅ [Incoming Call Accepted] User accepted call from ${callerName}. Fetching Agora token...`);
+    stopRinging();
     clearTimeout(autoDeclineTimer.current);
-    router.push('/(main)/video-call');
+    try {
+      let acceptRes = null;
+      if (callId) {
+        acceptRes = await callService.acceptCall(callId);
+      }
+      const acceptData = acceptRes?.data?.token ? acceptRes.data : (acceptRes?.token ? acceptRes : acceptRes?.data || {});
+      console.log(`🔑 [Agora Token Received] Channel: ${acceptData?.channelName} | Token length: ${acceptData?.token?.length}`);
+
+      router.replace({
+        pathname: '/(main)/messages/active_call',
+        params: {
+          callId,
+          callType,
+          mode: 'incoming',
+          channelName: acceptData?.channelName || channelName,
+          token: acceptData?.token,
+          uid: acceptData?.uid,
+          agoraAppId: acceptData?.agoraAppId,
+          remoteName: callerName,
+          remotePhoto: callerPhoto,
+        },
+      });
+    } catch (err) {
+      console.error('[Accept Call error]:', err);
+      Alert.alert('Call Error', err?.response?.data?.message || err.message || 'Failed to accept call.');
+      router.replace('/(main)/messages/chat');
+    }
   };
 
   return (
@@ -82,15 +202,17 @@ export default function IncomingCallScreen() {
           
           <View style={styles.avatarMainPlate}>
             <Image 
-              source={require('../../../assets/icons/nanny-image.svg')} 
+              source={callerPhoto ? { uri: callerPhoto } : require('../../../assets/icons/nanny-image.svg')} 
               style={styles.callerAvatar}
               contentFit="cover"
             />
           </View>
         </View>
 
-        <Text style={styles.callerName}>Parent</Text>
-        <Text style={styles.callingStatus}>is video calling you...</Text>
+        <Text style={styles.callerName}>{callerName}</Text>
+        <Text style={styles.callingStatus}>
+          is {callType} calling you...
+        </Text>
       </View>
 
       <View style={styles.controlsDock}>

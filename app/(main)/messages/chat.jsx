@@ -14,12 +14,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   FlatList,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomImage as Image } from "../../../src/components/common/CustomImage";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
+import callService from "../../../src/services/callService";
 
 const { width, height } = Dimensions.get("window");
 
@@ -315,13 +317,69 @@ export default function ActiveChatScreen() {
     router.push("/(main)/messages/request-session");
   };
 
-  const startVideoCall = () => {
-    router.push("/(main)/messages/incoming_call");
+  const handleStartCall = async (callType) => {
+    try {
+      const targetReceiverId = params.receiverId || params.parentId || params.nannyId || params.id || params.userId;
+      if (!targetReceiverId) {
+        Alert.alert(
+          "Notice",
+          "No recipient ID linked to this chat. Launching call test screen.",
+          [
+            {
+              text: "Continue",
+              onPress: () => {
+                router.push({
+                  pathname: "/(main)/messages/active_call",
+                  params: {
+                    callType,
+                    mode: "outgoing",
+                    remoteName: tutorName,
+                  },
+                });
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      console.log(`\n🚀 [INITIATING ${callType.toUpperCase()} CALL] Calling ${tutorName} (Recipient ID: ${targetReceiverId})...`);
+
+      const res = await callService.initiateCall({
+        receiverId: targetReceiverId,
+        callType,
+      });
+
+      console.log(`✅ [CALL API SUCCESS] Call ID: ${res?.data?.callId} | Channel: ${res?.data?.channelName} | Local UID: ${res?.data?.uid}`);
+
+      if (res?.status === "busy") {
+        console.warn(`⚠️ [CALL BUSY] Recipient is busy on another call.`);
+        Alert.alert("User Busy", res.message || `${tutorName} is currently on another call.`);
+        return;
+      }
+
+      router.push({
+        pathname: "/(main)/messages/active_call",
+        params: {
+          callId: res.data.callId,
+          callType,
+          mode: "outgoing",
+          channelName: res.data.channelName,
+          token: res.data.token,
+          uid: res.data.uid,
+          agoraAppId: res.data.agoraAppId,
+          remoteName: res.data.receiver?.name || tutorName,
+          remotePhoto: res.data.receiver?.photo || "",
+        },
+      });
+    } catch (err) {
+      console.error("❌ [startCall error]:", err);
+      Alert.alert("Call Error", err?.response?.data?.message || err.message || "Failed to initiate call.");
+    }
   };
 
-  const startAudioCall = () => {
-    router.push("/(main)/messages/incoming_call");
-  };
+  const startVideoCall = () => handleStartCall("video");
+  const startAudioCall = () => handleStartCall("audio");
 
   return (
     <View style={{ flex: 1, backgroundColor: "#FFF6E6" }}>

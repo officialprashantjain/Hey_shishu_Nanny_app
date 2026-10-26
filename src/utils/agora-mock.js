@@ -24,6 +24,7 @@ export const createAgoraRtcEngine = () => {
     muteLocalAudioStream: () => 0,
     muteLocalVideoStream: () => 0,
     switchCamera: () => 0,
+    setEnableSpeakerphone: () => 0,
   };
 };
 

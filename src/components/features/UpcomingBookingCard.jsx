@@ -23,7 +23,7 @@ export const UpcomingBookingCard = ({ data, onStartJourney, onMessage, onCall, o
         <Image source={data.parentPhoto} style={styles.avatar} contentFit="cover" />
         <View style={styles.profileInfo}>
           <Text style={styles.name}>{data.parentName}</Text>
-          <Text style={styles.subtext}>Primary Contact</Text>
+          <Text style={styles.subtext}>Primary Contact{data.parentPhone ? ` • ${data.parentPhone}` : ''}</Text>
         </View>
         <View style={styles.iconActions}>
           <TouchableOpacity style={styles.iconBtn} onPress={onMessage}>
