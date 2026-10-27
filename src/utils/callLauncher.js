@@ -1,3 +1,7 @@
+import Constants from 'expo-constants';
+import { prepareCallMedia } from './callMedia';
+import { requestCallPermissions } from './callPermissions';
+import { startNativeOutgoingCall } from '../services/nativeCallService';
 import { Alert, Linking } from 'react-native';
 import callService from '../services/callService';
 
@@ -13,6 +17,10 @@ export async function initiateOutgoingCall({
   callType = 'audio',
 }) {
   try {
+    if (Constants.executionEnvironment === 'storeClient') {
+      Alert.alert('Native build required', 'Audio and video calls require an Android or iOS development or release build.');
+      return;
+    }
     if (!receiverId) {
       console.warn('[callLauncher] Cannot initiate call: missing receiverId.');
       Alert.alert('Notice', 'No parent contact is linked to this booking yet.');
@@ -21,6 +29,8 @@ export async function initiateOutgoingCall({
 
     console.log(`\n🚀 [OUTGOING CALL] Nanny calling "${receiverName}" (${callType.toUpperCase()}) | Recipient ID: ${receiverId}`);
 
+    await prepareCallMedia();
+    await requestCallPermissions(callType);
     const res = await callService.initiateCall({
       receiverId,
       receiverRole: 'parent',
@@ -41,10 +51,12 @@ export async function initiateOutgoingCall({
 
     console.log(`✅ [CALL SESSION CREATED] ID: ${sessionData.callId} | Channel: ${sessionData.channelName} | Local UID: ${sessionData.uid}`);
 
+    await startNativeOutgoingCall({ ...sessionData, callId: sessionData.callId, mode: 'outgoing', callType, remoteName: receiverName, remotePhoto: receiverPhoto || '' });
     router.push({
       pathname: '/(main)/messages/active_call',
       params: {
         callId: sessionData.callId,
+        uuid: sessionData.uuid,
         callType,
         mode: 'outgoing', // OUTGOING CALL — Nanny is the caller!
         channelName: sessionData.channelName,
@@ -56,7 +68,7 @@ export async function initiateOutgoingCall({
       },
     });
   } catch (err) {
-    console.error('❌ [initiateOutgoingCall error]:', err);
+    console.error('❌ [initiateOutgoingCall error]:', err.response?.status || err.code || err.message);
     Alert.alert('Call Error', err?.response?.data?.message || err.message || 'Failed to start call. Please try again.');
   }
 }

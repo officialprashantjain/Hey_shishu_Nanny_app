@@ -1,3 +1,4 @@
+import { logoutNanny } from '../../services/authServices';
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { CustomImage as Image } from '../common/CustomImage';
@@ -54,8 +55,13 @@ export default function CustomDrawerContent(props) {
     { label: 'Log Out', icon: require('../../../assets/icons/drawer-logout.svg'), route: '/(auth)/login' },
   ];
 
-  const handleNavigation = (route) => {
+  const handleNavigation = async (route) => {
     props.navigation.closeDrawer();
+    if (route === '/(auth)/login') {
+      await dispatch(logoutNanny());
+      router.replace(route);
+      return;
+    }
     router.push(route);
   };
 

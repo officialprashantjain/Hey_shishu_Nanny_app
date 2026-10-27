@@ -1,0 +1,14 @@
+Production JavaScript export after final source changes
+CI=1 npx expo export --clear --platform android --platform ios --output-dir /tmp/heyshishu-work/nanny-bundle-final
+
+› ios bundles (1):
+_expo/static/js/ios/index-e2f877bd0a2ecc4b0c471e18ba3e061a.hbc (8.48 MB)
+
+› android bundles (1):
+_expo/static/js/android/index-8d3c03b856984839b1081fdbabe50b2f.hbc (8.57 MB)
+
+› Files (1):
+metadata.json (8.68 kB)
+
+Exported: /tmp/heyshishu-work/nanny-bundle-final
+

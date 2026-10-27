@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1059886496580",
+    "project_id": "heyshishu-app",
+    "storage_bucket": "heyshishu-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1059886496580:android:6bd14f9ba72b647ec1b511",
+        "android_client_info": {
+          "package_name": "com.heyshishu.nannyapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDw4Cal6xjy5cYbjfXe6hu8pqGw5D2fXLE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

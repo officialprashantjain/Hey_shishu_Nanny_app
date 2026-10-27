@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomImage as Image } from "../../../src/components/common/CustomImage";
-import { useRouter, Stack } from "expo-router";
+import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
 
@@ -26,6 +26,9 @@ const screenOptions = {
 
 export default function RatingScreen() {
   const router = useRouter();
+  const { remoteName = 'your contact', duration = '0' } = useLocalSearchParams();
+  const seconds = Math.max(0, Number(duration) || 0);
+  const callTime = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
   const [rating, setRating] = useState(5);
   const [commentText, setCommentText] = useState("");

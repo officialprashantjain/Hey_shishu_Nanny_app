@@ -1,5 +1,4 @@
-import api from './api';
-import { saveToken, removeToken, getToken } from '../utils/storage';
+import api, { logoutSession } from './api';
 import { loginStart, loginSuccess, loginFailure, logout as logoutAction } from '../redux/slices/authSlice';
 import { fetchProfileStart, fetchProfileSuccess, fetchProfileFailure, clearProfile } from '../redux/slices/profileSlice';
 import { getMyProfile } from './nannyService';
@@ -13,7 +12,6 @@ export const loginNanny = (email, password) => async (dispatch) => {
     const response = await api.post('/auth/nanny/login', { email, password });
     // response = { status: 'success', token: '...', data: { _id, fullName, email, role } }
 
-    await saveToken(response.token);
     dispatch(loginSuccess({ token: response.token, data: response.data }));
 
     // ── After login: fetch full nanny profile ──────────────────────────────────
@@ -65,7 +63,6 @@ export const verifyOtp = (phoneNumber, otp) => async (dispatch) => {
     const response = await api.post('/auth/nanny/verify-otp', { phoneNumber, otp });
     // response = { status: 'success', token: '...', data: { _id, fullName, email, role } }
 
-    await saveToken(response.token);
     dispatch(loginSuccess({ token: response.token, data: response.data }));
 
     // ── After verification: fetch full nanny profile ────────────────────────────
@@ -96,7 +93,7 @@ export const verifyOtp = (phoneNumber, otp) => async (dispatch) => {
 
 // ─── LOGOUT ───────────────────────────────────────────────────────────────────
 export const logoutNanny = () => async (dispatch) => {
-  await removeToken();
+  await logoutSession();
   dispatch(logoutAction());
   dispatch(clearProfile());
 };

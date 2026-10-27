@@ -25,6 +25,11 @@ export const createAgoraRtcEngine = () => {
     muteLocalVideoStream: () => 0,
     switchCamera: () => 0,
     setEnableSpeakerphone: () => 0,
+    setDefaultAudioRouteToSpeakerphone: () => {},
+    startPreview: () => {},
+    stopPreview: () => {},
+    enableLocalVideo: () => {},
+    updateChannelMediaOptions: () => {},
   };
 };
 
@@ -52,19 +57,16 @@ export const RenderModeType = {
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-export const RtcSurfaceView = ({ style }) => (
-  <View style={[style, stubStyles.container]}>
-    <Text style={stubStyles.text}>📵 Video not available{'\n'}in Expo Go</Text>
-  </View>
-);
+export const RtcSurfaceView = ({ style }) =>
+  React.createElement(
+    View,
+    { style: [style, stubStyles.container] },
+    React.createElement(Text, { style: stubStyles.text }, '📵 Video not available\nin Expo Go')
+  );
 
 export const RtcTextureView = RtcSurfaceView;
 
-export const AgoraVideoView = ({ style }) => (
-  <View style={[style, stubStyles.container]}>
-    <Text style={stubStyles.text}>📵 Video not available{'\n'}in Expo Go</Text>
-  </View>
-);
+export const AgoraVideoView = RtcSurfaceView;
 
 const stubStyles = StyleSheet.create({
   container: {

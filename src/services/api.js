@@ -1,103 +1,125 @@
-import axios from "axios";
-import { router } from "expo-router";
-import { getToken, removeToken } from "../utils/storage";
-import { Alert } from "react-native";
+import axios from 'axios';
+import { getSession, saveSession, removeToken } from '../utils/storage';
 
-const instance = axios.create({
-  baseURL: `${process.env.EXPO_PUBLIC_API_BASE_URL}`,
-  timeout: 50000,
-  headers: {
-    Accept: "application/json",
-    "Content-Type": "application/json",
-  },
+const AUTH_PATH = '/auth/nanny';
+const settings = { baseURL: process.env.EXPO_PUBLIC_API_BASE_URL, timeout: 30000,
+  headers: { Accept: 'application/json', 'Content-Type': 'application/json' } };
+const instance = axios.create(settings);
+const refreshClient = axios.create({ ...settings, timeout: 15000 });
+let refreshPromise;
+const publicAuth = (url = '') => /\/auth\/(parent|nanny)\/(login|register|send-otp|verify-otp|verify-2fa|complete-registration|forgot-password|reset-password|refresh)(?:$|\?)/.test(url);
+
+export async function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const session = await getSession();
+      if (!session?.refreshToken) return null;
+      try {
+        const { data } = await refreshClient.post(`${AUTH_PATH}/refresh`, { refreshToken: session.refreshToken });
+        const current = await getSession();
+        // A logout or a different login may have completed while this request was in flight.
+        if (current?.refreshToken !== session.refreshToken) return current?.token || null;
+        await saveSession({ ...current, ...data, user: { ...current.user, ...data.data }, data: undefined, status: undefined });
+        return data.token;
+      } catch (error) {
+        if ([400, 401, 403].includes(error.response?.status)) {
+          const current = await getSession();
+          if (current?.refreshToken === session.refreshToken) await removeToken();
+        }
+        // Offline, timeout and server errors keep the saved session for the next retry.
+        throw error;
+      }
+    })().finally(() => { refreshPromise = null; });
+  }
+  return refreshPromise;
+}
+
+instance.interceptors.request.use(async (config) => {
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+    console.info(`[API] ${config.method?.toUpperCase()} ${config.baseURL || ''}${config.url?.split('?')[0] || ''}`);
+  }
+  if (!publicAuth(config.url)) {
+    const session = await getSession();
+    if (session?.token) config.headers.Authorization = `Bearer ${session.token}`;
+  }
+  return config;
+});
+instance.interceptors.response.use(async (response) => {
+  const body = response.data;
+  if (response.config.url?.startsWith(AUTH_PATH) && body?.token && body?.refreshToken) {
+    await saveSession({ token: body.token, refreshToken: body.refreshToken,
+      refreshExpiresAt: body.refreshExpiresAt, user: body.data || (await getSession())?.user });
+  }
+  return response;
+}, async (error) => {
+  const config = error.config;
+  if (error.response?.status !== 401 || !config || config._retry || publicAuth(config.url)) throw error;
+  config._retry = true;
+  const session = await getSession();
+  if (!session) throw error;
+  if (config.headers.Authorization !== `Bearer ${session.token}`) return instance(config);
+  if (!session.refreshToken) {
+    await removeToken();
+    throw error;
+  }
+  const token = await refreshAccessToken();
+  if (!token) throw error;
+  return instance(config);
 });
 
-// ─── Request Interceptor: Attach JWT ────────────────────────────────────────
-instance.interceptors.request.use(
-  async function (config) {
-    const token = await getToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+function accessTokenIsFresh(token) {
+  try {
+    const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = JSON.parse(globalThis.atob(payload));
+    return decoded.exp * 1000 > Date.now() + 30000;
+  } catch (_) { return false; }
+}
+
+export async function restoreSession() {
+  let session = await getSession();
+  if (!session?.token) return null;
+  if (session.refreshToken) {
+    if (accessTokenIsFresh(session.token)) return session;
+    try { await refreshAccessToken(); } catch (error) {
+      console.warn('[Session] Restore deferred:', error.response?.status || error.code || 'network');
     }
-    console.log(
-      `[API ▶] ${config.method?.toUpperCase()} ${config.url} | Auth: ${token ? "YES" : "NONE"}`,
-    );
-    return config;
-  },
-  (error) => {
-    console.error(`[API REQUEST ERROR]`, error);
-    return Promise.reject(error);
-  },
-);
+    return getSession();
+  }
+  // Legacy 7-day tokens remain usable until they expire; new logins receive refresh tokens.
+  try {
+    const response = await instance.get('/nanny/profile');
+    const data = response.data?.data;
+    session = { ...session, user: data?.customer || data?.profile?.traineeApplicationId || session.user };
+    await saveSession(session);
+  } catch (error) {
+    console.warn('[Session] Legacy validation:', error.response?.status || error.code || 'network');
+  }
+  return getSession();
+}
 
-// ─── Response Interceptor: Handle Errors ────────────────────────────────────
-instance.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  async (error) => {
-    const status = error?.response?.status;
-    const config = error?.config;
-    const responseData = error?.response?.data;
-    const errorMsg = responseData?.error || responseData?.message || "";
-
-    console.warn(`[API ❌] ${status} ${config?.url} →`, responseData);
-
-    // ── Retry once on "User not found" (potential DB propagation lag after upsert) ──
-    if (
-      status === 401 &&
-      errorMsg.toLowerCase().includes("user not found") &&
-      config &&
-      !config._retry
-    ) {
-      config._retry = true;
-      console.log(`[API 🔄 RETRY] Waiting 2s then retrying ${config.url} ...`);
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Re-read token fresh from storage (not in-memory cache)
-      const freshToken = await getToken();
-      console.log(
-        `[API 🔄 RETRY] Using token: ${freshToken ? "EXISTS" : "MISSING"}`,
-      );
-      if (freshToken) {
-        config.headers.Authorization = `Bearer ${freshToken}`;
-      }
-      return instance(config);
+export async function logoutSession() {
+  const session = await getSession();
+  // Explicit logout must survive an immediate process kill, even when offline.
+  await removeToken();
+  if (!session?.token) return;
+  const revoke = (token) => refreshClient.post(`${AUTH_PATH}/logout`, {}, { headers: { Authorization: `Bearer ${token}` } });
+  try { await revoke(session.token); }
+  catch (error) {
+    try {
+      if (error.response?.status !== 401 || !session.refreshToken) throw error;
+      const response = await refreshClient.post(`${AUTH_PATH}/refresh`, { refreshToken: session.refreshToken });
+      // Revoke using the temporary access token; never put the logged-out session back in storage.
+      await revoke(response.data.token);
+    } catch (failure) {
+      console.warn('[Session] Logout server unavailable:', failure.response?.status || failure.code || 'network');
     }
-
-    // ── Terminal 401: clear session and redirect ─────────────────────────────
-    if (status === 401) {
-      console.error(
-        `[API  SESSION EXPIRED] Reason: "${errorMsg}". Clearing and redirecting.`,
-      );
-      try {
-        await removeToken();
-      } catch (e) {
-        console.warn("Could not remove token:", e);
-      }
-      Alert.alert(
-        "Session Expired",
-        `Please log in again.\n(Reason: ${errorMsg || "Unauthorized"})`,
-        [{ text: "OK", onPress: () => router.replace("/(onboarding)/splash") }],
-      );
-    }
-
-    return Promise.reject(error);
-  },
-);
-
-// ─── Exported API methods ────────────────────────────────────────────────────
-const responseBody = (response) => response.data;
-
-const api = {
-  get: (url, config) => instance.get(url, config).then(responseBody),
-  post: (url, body, config) =>
-    instance.post(url, body, config).then(responseBody),
-  put: (url, body, config) =>
-    instance.put(url, body, config).then(responseBody),
-  patch: (url, body, config) =>
-    instance.patch(url, body, config).then(responseBody),
-  delete: (url, config) => instance.delete(url, config).then(responseBody),
+  }
+}
+const body = (response) => response.data;
+export default {
+  get: (url, config) => instance.get(url, config).then(body),
+  post: (url, data, config) => instance.post(url, data, config).then(body),
+  put: (url, data, config) => instance.put(url, data, config).then(body),
+  patch: (url, data, config) => instance.patch(url, data, config).then(body),
+  delete: (url, config) => instance.delete(url, config).then(body),
 };
-
-export default api;

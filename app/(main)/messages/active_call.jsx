@@ -1,325 +1,113 @@
-import React, { useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Dimensions,
-  StatusBar,
-  Platform,
-  Alert,
-  Animated,
-} from "react-native";
-import { CustomImage as Image } from "../../../src/components/common/CustomImage";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import Constants from "expo-constants";
-import { colors } from "../../../constants/color";
-import { fonts } from "../../../constants/font";
-import callService from "../../../src/services/callService";
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, StatusBar, Platform, Animated, BackHandler } from 'react-native';
+import { CustomImage as Image } from '../../../src/components/common/CustomImage';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import Constants from 'expo-constants';
+import { fonts } from '../../../constants/font';
+import { Ionicons } from '@expo/vector-icons';
+import callSessionManager, { useCallSession } from '../../../src/services/callSessionManager';
 
-const { width, height } = Dimensions.get("window");
-
-// Detect Expo Go to prevent native module crash
-const isExpoGo =
-  Constants.executionEnvironment === "storeClient" ||
-  Constants.executionEnvironment === "expo";
-
-let createAgoraRtcEngine,
-  ChannelProfileType,
-  ClientRoleType,
-  RtcSurfaceView,
-  VideoSourceType;
-
-if (isExpoGo) {
-  ({
-    createAgoraRtcEngine,
-    ChannelProfileType,
-    ClientRoleType,
-    RtcSurfaceView,
-    VideoSourceType,
-  } = require("../../../src/utils/agora-mock"));
-} else {
-  ({
-    createAgoraRtcEngine,
-    ChannelProfileType,
-    ClientRoleType,
-    RtcSurfaceView,
-    VideoSourceType,
-  } = require("react-native-agora"));
-}
+const { width, height } = Dimensions.get('window');
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+const { RtcSurfaceView, VideoSourceType } = isExpoGo
+  ? require('../../../src/utils/agora-mock') : require('react-native-agora');
 
 export default function ActiveCallScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-
-  // Params passed from chat.jsx or incoming_call.jsx
-  const callId = params.callId;
-  const callType = params.callType === "audio" ? "audio" : "video";
-  const mode = params.mode || "outgoing"; // 'outgoing' | 'incoming'
-  const remoteName = params.remoteName || "Parent";
+  const { callId, uuid, channelName, token, agoraAppId } = params;
+  const callType = params.callType === 'audio' ? 'audio' : 'video';
+  const mode = params.mode || 'outgoing';
+  const remoteName = params.remoteName || 'Parent';
   const remotePhoto = params.remotePhoto || null;
-  const channelName = params.channelName || process.env.EXPO_PUBLIC_AGORA_CHANNEL || `hs-call-test`;
-  const token = params.token || process.env.EXPO_PUBLIC_AGORA_TOKEN || "";
-  const agoraAppId = params.agoraAppId || process.env.EXPO_PUBLIC_AGORA_APP_ID;
-  const numericUid = Number(params.uid) || 1002;
+  const numericUid = Number(params.uid);
 
-  const agoraEngineRef = useRef(null);
-  const [isJoined, setIsJoined] = useState(false);
-  const [remoteUid, setRemoteUid] = useState(null);
-  const [callConnected, setCallConnected] = useState(false);
-  const [callDuration, setCallDuration] = useState(0);
-
-  const [isMuted, setIsMuted] = useState(false);
-  const [isCameraOff, setIsCameraOff] = useState(false);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(callType === "video");
-  const [callStatusMessage, setCallStatusMessage] = useState(
-    mode === "outgoing" ? "Ringing..." : "Connecting..."
-  );
-
-  const durationTimerRef = useRef(null);
-  const statusPollingRef = useRef(null);
-
-  // Soundwave pulse animation for audio calls & outgoing ringing
+  const session = useCallSession();
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const hadActiveCall = useRef(false);
 
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.25,
-          duration: 1200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1200,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
+  const isJoined = session?.isJoined ?? false;
+  const remoteUid = session?.remoteUid ?? null;
+  const callConnected = session?.callConnected ?? false;
+  const callDuration = session?.callDuration ?? 0;
+  const isMuted = session?.isMuted ?? false;
+  const isCameraOff = session?.isCameraOff ?? false;
+  const isSpeakerOn = session?.isSpeakerOn ?? (callType === 'video');
+  const callStatusMessage = session?.callStatusMessage ?? (mode === 'outgoing' ? 'Ringing…' : 'Connecting…');
 
-  // 1. Initialize Agora Engine and Join Channel
-  useEffect(() => {
-    setupAgoraEngine();
-
-    return () => {
-      cleanupAgora();
-      if (durationTimerRef.current) clearInterval(durationTimerRef.current);
-      if (statusPollingRef.current) clearInterval(statusPollingRef.current);
-    };
-  }, []);
-
-  // 2. Duration Timer (starts only when remote user joins)
-  useEffect(() => {
-    if (callConnected) {
-      durationTimerRef.current = setInterval(() => {
-        setCallDuration((prev) => prev + 1);
-      }, 1000);
+  const handleMinimize = () => {
+    callSessionManager.minimizeCall();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(main)/(tabs)');
     }
-    return () => {
-      if (durationTimerRef.current) clearInterval(durationTimerRef.current);
-    };
-  }, [callConnected]);
-
-  // 3. Status Polling fallback for Outgoing call until accepted or declined
-  useEffect(() => {
-    if (mode === "outgoing" && !callConnected && callId) {
-      statusPollingRef.current = setInterval(async () => {
-        try {
-          const res = await callService.getCallStatus(callId);
-          const currentStatus = res?.data?.status;
-
-          if (currentStatus === "accepted" && !callConnected) {
-            setCallStatusMessage("Connecting audio/video...");
-          } else if (currentStatus === "declined") {
-            clearInterval(statusPollingRef.current);
-            cleanupAgora();
-            Alert.alert("Call Declined", `${remoteName} declined your call.`);
-            router.replace("/(main)/messages/chat");
-          } else if (currentStatus === "missed") {
-            clearInterval(statusPollingRef.current);
-            cleanupAgora();
-            router.replace("/(main)/messages/no_response");
-          } else if (currentStatus === "ended") {
-            clearInterval(statusPollingRef.current);
-            cleanupAgora();
-            router.replace("/(main)/messages/chat");
-          }
-        } catch (err) {
-          console.warn("[Call Status Poll] error:", err.message);
-        }
-      }, 2500);
-    }
-
-    return () => {
-      if (statusPollingRef.current) clearInterval(statusPollingRef.current);
-    };
-  }, [mode, callConnected, callId]);
-
-  const setupAgoraEngine = async () => {
-    if (isExpoGo) {
-      setCallStatusMessage("Expo Go Mock Call (Real Agora in Standalone Build)");
-      setIsJoined(true);
-      return;
-    }
-
-    try {
-      if (Platform.OS === "android") {
-        const { PermissionsAndroid } = require("react-native");
-        const permissions = [PermissionsAndroid.PERMISSIONS.RECORD_AUDIO];
-        if (callType === "video") {
-          permissions.push(PermissionsAndroid.PERMISSIONS.CAMERA);
-        }
-        await PermissionsAndroid.requestMultiple(permissions);
-      }
-
-      agoraEngineRef.current = createAgoraRtcEngine();
-      const agora = agoraEngineRef.current;
-
-      console.log("╔══════════════════════════════════════════════════════╗");
-      console.log("║           📞 [AGORA ENGINE INITIALIZED]             ║");
-      console.log("╠══════════════════════════════════════════════════════╣");
-      console.log(`║ Mode        : ${mode.toUpperCase()} (${callType.toUpperCase()} CALL)`);
-      console.log(`║ Channel     : ${channelName}`);
-      console.log(`║ Numeric UID : ${numericUid}`);
-      console.log(`║ App ID      : ${agoraAppId ? agoraAppId.substring(0, 10) + '...' : 'MISSING ❌'}`);
-      console.log(`║ Token       : ${token ? token.substring(0, 18) + '...' : 'EMPTY ⚠️'}`);
-      console.log(`║ Remote User : ${remoteName}`);
-      console.log("╚══════════════════════════════════════════════════════╝");
-
-      agora.registerEventHandler({
-        onJoinChannelSuccess: () => {
-          console.log(`✅ [Agora Joined Channel] Success! Channel: ${channelName} | Local UID: ${numericUid}`);
-          setIsJoined(true);
-          if (mode === "outgoing" && !remoteUid) {
-            setCallStatusMessage("Ringing...");
-          }
-        },
-        onUserJoined: (_connection, uid) => {
-          console.log(`🎉 [Agora Remote Joined] Remote user entered room! UID: ${uid}`);
-          setRemoteUid(uid);
-          setCallConnected(true);
-          setCallStatusMessage("Call Active");
-          if (statusPollingRef.current) clearInterval(statusPollingRef.current);
-        },
-        onUserOffline: (_connection, uid) => {
-          console.log(`👋 [Agora Remote Left] Remote user left room. UID: ${uid}`);
-          handleRemoteHangup();
-        },
-        onError: (err) => {
-          console.error(`❌ [Agora RTC Engine Error]: Code ${err}`);
-        },
-      });
-
-      agora.initialize({ appId: agoraAppId });
-
-      if (callType === "video") {
-        console.log("📹 [Agora] Enabling video & camera feed...");
-        agora.enableVideo();
-        agora.startPreview?.();
-      } else {
-        console.log("🎙️ [Agora] Enabling audio-only mode...");
-        agora.enableAudio();
-      }
-
-      // Speakerphone routing
-      agora.setEnableSpeakerphone?.(callType === "video");
-
-      console.log(`🚀 [Agora] Joining channel "${channelName}" as Broadcaster with UID: ${numericUid}...`);
-      await agora.joinChannel(token, channelName, numericUid, {
-        channelProfile: ChannelProfileType.ChannelProfileCommunication,
-        clientRoleType: ClientRoleType.ClientRoleBroadcaster,
-        publishMicrophoneTrack: true,
-        publishCameraTrack: callType === "video",
-        autoSubscribeAudio: true,
-        autoSubscribeVideo: callType === "video",
-      });
-    } catch (e) {
-      console.error("❌ [Agora Setup Fatal Error]:", e);
-      Alert.alert("Call Error", "Failed to connect call: " + e.message);
-    }
-  };
-
-  const cleanupAgora = () => {
-    try {
-      agoraEngineRef.current?.leaveChannel();
-      agoraEngineRef.current?.release();
-    } catch (e) {
-      console.warn("[Agora Cleanup Warning]:", e);
-    }
-  };
-
-  const handleRemoteHangup = () => {
-    cleanupAgora();
-    Alert.alert("Call Ended", `${remoteName} ended the call.`, [
-      {
-        text: "OK",
-        onPress: () => {
-          router.replace({
-            pathname: "/(main)/messages/rating",
-            params: { duration: callDuration, remoteName },
-          });
-        },
-      },
-    ]);
   };
 
   const handleHangup = async () => {
-    console.log(`📵 [Call Hangup] User pressed End Call button. Total duration: ${callDuration}s`);
-    if (durationTimerRef.current) clearInterval(durationTimerRef.current);
-    if (statusPollingRef.current) clearInterval(statusPollingRef.current);
+    const duration = session?.callDuration || 0;
+    const targetName = session?.remoteName || remoteName;
+    await callSessionManager.endCall(mode === 'outgoing' ? 'caller_hangup' : 'receiver_hangup');
+    router.replace({ pathname: '/(main)/messages/rating', params: { duration, remoteName: targetName } });
+  };
 
-    cleanupAgora();
+  useEffect(() => {
+    const animation = Animated.loop(Animated.sequence([
+      Animated.timing(pulseAnim, { toValue: 1.25, duration: 1200, useNativeDriver: true }),
+      Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+    ]));
+    animation.start();
+    return () => animation.stop();
+  }, []);
 
+  useEffect(() => {
     if (callId) {
-      try {
-        await callService.endCall(callId, "caller_hangup");
-      } catch (err) {
-        console.warn("[End Call API] error:", err.message);
-      }
+      callSessionManager.startOrAttachCall({
+        callId,
+        uuid,
+        channelName,
+        token,
+        agoraAppId,
+        uid: numericUid,
+        callType,
+        mode,
+        remoteName,
+        remotePhoto,
+        startedAt: params.startedAt,
+      });
     }
 
-    router.replace({
-      pathname: "/(main)/messages/rating",
-      params: { duration: callDuration, remoteName },
+    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleMinimize();
+      return true;
     });
-  };
 
-  const toggleMute = () => {
-    const nextState = !isMuted;
-    console.log(`🎙️ [Call Control] Toggle Mute: ${nextState ? "MUTED" : "UNMUTED"}`);
-    setIsMuted(nextState);
-    agoraEngineRef.current?.muteLocalAudioStream(nextState);
-  };
+    return () => {
+      back.remove();
+      callSessionManager.detachScreen();
+    };
+  }, [callId]);
 
-  const toggleCamera = () => {
-    if (callType !== "video") return;
-    const nextState = !isCameraOff;
-    console.log(`📷 [Call Control] Toggle Camera: ${nextState ? "CAMERA OFF" : "CAMERA ON"}`);
-    setIsCameraOff(nextState);
-    agoraEngineRef.current?.muteLocalVideoStream(nextState);
-  };
+  useEffect(() => {
+    if (session?.callId) {
+      hadActiveCall.current = true;
+    } else if (hadActiveCall.current) {
+      const last = callSessionManager.getLastSummary();
+      router.replace({
+        pathname: '/(main)/messages/rating',
+        params: {
+          duration: last?.duration || 0,
+          remoteName: last?.remoteName || remoteName,
+        },
+      });
+    }
+  }, [session?.callId]);
 
-  const toggleSpeaker = () => {
-    const nextState = !isSpeakerOn;
-    console.log(`🔊 [Call Control] Toggle Speaker: ${nextState ? "SPEAKERPHONE" : "EARPIECE"}`);
-    setIsSpeakerOn(nextState);
-    agoraEngineRef.current?.setEnableSpeakerphone?.(nextState);
-  };
-
-  const flipCamera = () => {
-    if (callType !== "video") return;
-    console.log("🔄 [Call Control] Switching Camera (front/back)...");
-    agoraEngineRef.current?.switchCamera?.();
-  };
-
-  const formatTime = (totalSeconds) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    const pad = (v) => (v < 10 ? "0" + v : v);
-    return `${pad(mins)}:${pad(secs)}`;
-  };
+  const toggleMute = () => callSessionManager.toggleMute();
+  const toggleCamera = () => callSessionManager.toggleCamera();
+  const toggleSpeaker = () => callSessionManager.toggleSpeaker();
+  const flipCamera = () => callSessionManager.flipCamera();
+  const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
   return (
     <View style={styles.container}>
@@ -343,7 +131,7 @@ export default function ActiveCallScreen() {
                   contentFit="cover"
                 />
               </View>
-              <Text style={styles.remoteNameText}>{remoteName}</Text>
+              <Text style={styles.remoteNameText}>{session?.remoteName || remoteName}</Text>
               <Text style={styles.statusSubText}>{callStatusMessage}</Text>
             </View>
           )}
@@ -378,21 +166,33 @@ export default function ActiveCallScreen() {
               />
             </View>
           </View>
-          <Text style={styles.audioRemoteName}>{remoteName}</Text>
+          <Text style={styles.audioRemoteName}>{session?.remoteName || remoteName}</Text>
           <Text style={styles.audioStatusText}>
             {callConnected ? formatTime(callDuration) : callStatusMessage}
           </Text>
         </View>
       )}
 
-      {/* ── TOP DURATION / STATUS PILL ── */}
+      {/* ── TOP HEADER (MINIMIZE + DURATION PILL) ── */}
       <View style={styles.topBannerRow}>
+        <TouchableOpacity
+          style={styles.minimizeBtn}
+          onPress={handleMinimize}
+          activeOpacity={0.75}
+          accessibilityLabel="Minimize call"
+          accessibilityRole="button"
+        >
+          <Ionicons name="chevron-down" size={26} color="#FFFFFF" />
+        </TouchableOpacity>
+
         <View style={styles.durationBadge}>
           <View style={[styles.statusDot, callConnected ? styles.dotGreen : styles.dotOrange]} />
           <Text style={styles.durationTitle}>
             {callConnected ? formatTime(callDuration) : callStatusMessage}
           </Text>
         </View>
+
+        <View style={styles.headerSpacer} />
       </View>
 
       {/* ── BOTTOM DOCK CONTROLS ── */}
@@ -455,7 +255,7 @@ export default function ActiveCallScreen() {
             )}
 
             {/* End Call Button */}
-            <TouchableOpacity style={styles.hangupBtn} onPress={handleHangup}>
+            <TouchableOpacity accessibilityLabel="End call" style={styles.hangupBtn} onPress={handleHangup}>
               <Image
                 source={require("../../../assets/icons/call-declined.svg")}
                 style={styles.hangupIcon}
@@ -526,14 +326,14 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   remoteNameText: {
-    fontFamily: fonts.rubik,
+    fontFamily: fonts?.rubik || 'System',
     fontSize: 24,
     fontWeight: "700",
     color: "#FFFFFF",
     marginBottom: 8,
   },
   statusSubText: {
-    fontFamily: fonts.rubik,
+    fontFamily: fonts?.rubik || 'System',
     fontSize: 15,
     color: "#94A3B8",
   },
@@ -613,14 +413,14 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   audioRemoteName: {
-    fontFamily: fonts.rubik,
+    fontFamily: fonts?.rubik || 'System',
     fontSize: 26,
     fontWeight: "700",
     color: "#FFFFFF",
     marginBottom: 10,
   },
   audioStatusText: {
-    fontFamily: fonts.rubik,
+    fontFamily: fonts?.rubik || 'System',
     fontSize: 16,
     color: "#38BDF8",
     fontWeight: "600",
@@ -629,11 +429,26 @@ const styles = StyleSheet.create({
   /* Top Bar */
   topBannerRow: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 56 : 42,
-    left: 0,
-    right: 0,
+    top: Platform.OS === "ios" ? 54 : 38,
+    left: 16,
+    right: 16,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     zIndex: 30,
+  },
+  minimizeBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  headerSpacer: {
+    width: 42,
   },
   durationBadge: {
     flexDirection: "row",
@@ -658,7 +473,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F59E0B",
   },
   durationTitle: {
-    fontFamily: fonts.rubik,
+    fontFamily: fonts?.rubik || 'System',
     fontSize: 14,
     fontWeight: "600",
     color: "#FFFFFF",
@@ -680,31 +495,37 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingTop: 16,
     paddingBottom: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)",
+    borderColor: "rgba(255, 255, 255, 0.08)",
   },
   controlsRow: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
+    marginBottom: 8,
+  },
+  labelsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
   },
   btnCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#1E293B",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    position: "relative",
   },
   btnInactive: {
-    backgroundColor: "#EF4444",
+    backgroundColor: "#334155",
+    borderWidth: 1.5,
     borderColor: "#EF4444",
   },
   btnSpeakerOff: {
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    opacity: 0.6,
   },
   controlIcon: {
     width: 22,
@@ -712,9 +533,9 @@ const styles = StyleSheet.create({
   },
   slashOverlay: {
     position: "absolute",
-    width: 2,
-    height: 28,
-    backgroundColor: "#FFFFFF",
+    width: "70%",
+    height: 2,
+    backgroundColor: "#EF4444",
     transform: [{ rotate: "45deg" }],
   },
   hangupBtn: {
@@ -724,25 +545,24 @@ const styles = StyleSheet.create({
     backgroundColor: "#EF4444",
     justifyContent: "center",
     alignItems: "center",
+    elevation: 6,
+    shadowColor: "#EF4444",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
   },
   hangupIcon: {
-    width: 32,
-    height: 32,
-  },
-  labelsRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    marginTop: 8,
+    width: 26,
+    height: 26,
   },
   controlLabel: {
-    fontFamily: fonts.rubik,
-    fontSize: 11,
-    color: "#CBD5E1",
+    fontFamily: fonts?.rubik || 'System',
+    fontSize: 12,
+    color: "#94A3B8",
     textAlign: "center",
-    width: 52,
+    width: 56,
   },
   labelInactive: {
-    color: "#FCA5A5",
+    color: "#EF4444",
   },
 });

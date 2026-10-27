@@ -1,0 +1,14 @@
+{
+  "app": "nanny",
+  "test": "Android 36.1 isolated emulator native login service and force-stop/reopen",
+  "server": "local fixture; no production account created",
+  "loginServiceResult": {
+    "success": true,
+    "isProfileComplete": true
+  },
+  "result": "PASS",
+  "reopenedScreen": "New Jobs",
+  "loginRequestsBeforeReopen": 1,
+  "loginRequestsAfterReopen": 1,
+  "evidence": "nanny-restored.png"
+}

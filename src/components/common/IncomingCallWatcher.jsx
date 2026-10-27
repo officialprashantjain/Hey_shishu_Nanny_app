@@ -1,96 +1,73 @@
-import React, { useEffect, useRef } from 'react';
-import { AppState } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { AppState, Platform } from 'react-native';
 import { useRouter, useSegments } from 'expo-router';
 import callService from '../../services/callService';
-import notificationService from '../../services/notificationService';
+import { registerCallNotifications, subscribeCalls, consumeInitialCallAction, getPendingCall, showIncomingCall, finishNativeCall } from '../../services/nativeCallService';
 
-/**
- * IncomingCallWatcher
- * ───────────────────
- * Headless push notification & calling receiver mounted in MainLayout.
- * 1. Registers FCM push token with backend on startup.
- * 2. Listens for real-time FCM push notifications to pop incoming_call screen instantly.
- * 3. Uses a lightweight fallback poll (only on app resume / relaxed interval) to save server & battery.
- */
 export default function IncomingCallWatcher() {
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
   const segments = useSegments();
-  const lastRungCallIdRef = useRef(null);
-
-  const presentIncomingCall = (incoming) => {
-    const incomingCallId = incoming.callId || incoming._id;
-    if (!incomingCallId || lastRungCallIdRef.current === incomingCallId) {
-      return;
-    }
-
-    lastRungCallIdRef.current = incomingCallId;
-    console.log(`\n🔔 [IncomingCallWatcher] Presenting incoming ${incoming.callType?.toUpperCase()} call from "${incoming.callerName}" (ID: ${incomingCallId})`);
-
-    router.push({
-      pathname: '/(main)/messages/incoming_call',
-      params: {
-        callId: incomingCallId,
-        callerName: incoming.callerName || 'Parent',
-        callerPhoto: incoming.callerPhoto || '',
-        callType: incoming.callType || 'video',
-        channelName: incoming.channelName,
-      },
-    });
-  };
-
+  const segmentsRef = useRef(segments);
+  segmentsRef.current = segments;
+  const lastPresentation = useRef(null);
   useEffect(() => {
-    // 1. Initialize FCM & register token with backend
-    notificationService.registerForPushNotifications();
-
-    // 2. Setup real-time FCM push listener (instant, zero polling required)
-    const cleanupFCM = notificationService.setupCallNotificationListeners((pushData) => {
-      presentIncomingCall(pushData);
-    });
-
-    return () => {
-      cleanupFCM();
-    };
-  }, []);
-
-  useEffect(() => {
-    const isAlreadyOnCallScreen = segments.some(
-      (seg) => seg === 'incoming_call' || seg === 'active_call' || seg === 'no_response'
-    );
-
-    if (isAlreadyOnCallScreen) {
-      return;
-    }
-
-    const checkIncomingCall = async () => {
+    let alive = true;
+    let cleanupTokens;
+    let registering = false;
+    let registered = false;
+    let presenting = false;
+    const present = async (event) => {
+      if (!alive || !event?.data?.callId) return;
+      if (event.action === 'active' && event.data?.mode === 'outgoing') return; // Handled directly by callLauncher
+      if (!['incoming', 'answer', 'active'].includes(event.action)) return;
+      if (Platform.OS !== 'android' && AppState.currentState !== 'active' && event.action === 'incoming') return;
+      const onCall = segmentsRef.current.some((segment) => ['incoming_call', 'active_call'].includes(segment));
+      const key = `${event.data.callId}:${event.action}`;
+      if (presenting || onCall || lastPresentation.current === key) return;
+      presenting = true;
       try {
-        const res = await callService.getActiveIncomingCall();
-        const incomingData = res?.data?.hasIncoming !== undefined ? res.data : (res?.hasIncoming !== undefined ? res : null);
-        if (incomingData?.hasIncoming && incomingData?.call) {
-          presentIncomingCall(incomingData.call);
+        const status = await callService.getCallStatus(event.data.callId);
+        if (!['ringing', 'accepted'].includes(status.data.status)) {
+          await finishNativeCall(event.data.callId, event.data.uuid);
+          return;
         }
-      } catch (err) {
-        // Silently ignore polling glitches
-      }
+        if (!alive) return;
+        lastPresentation.current = key;
+        if (event.action === 'active') {
+          routerRef.current?.push({ pathname: '/(main)/messages/active_call', params: event.data });
+        } else {
+          routerRef.current?.push({ pathname: '/(main)/messages/incoming_call', params: {
+            ...event.data, autoAnswer: event.action === 'answer' ? 'true' : 'false',
+          } });
+        }
+      } catch (error) {
+        console.warn('[Incoming call] Presentation deferred:', error.response?.status || error.code || 'network');
+      } finally { presenting = false; }
     };
-
-    // Check once on mount
-    checkIncomingCall();
-
-    // Smart check on AppState change (when user brings app to foreground)
-    const appStateSub = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active') {
-        checkIncomingCall();
-      }
-    });
-
-    // Relaxed fallback interval (15 seconds instead of aggressive 3s spam)
-    const interval = setInterval(checkIncomingCall, 15000);
-
-    return () => {
-      appStateSub.remove();
-      clearInterval(interval);
+    const register = async () => {
+      if (registering || registered || !alive) return;
+      registering = true;
+      try {
+        const cleanup = await registerCallNotifications();
+        if (alive) { cleanupTokens = cleanup; registered = true; } else cleanup?.();
+      } catch (error) { console.warn('[Call push] Registration deferred:', error.message); }
+      finally { registering = false; }
     };
-  }, [segments]);
-
+    const checkLocal = async () => {
+      try {
+        await present(await getPendingCall());
+        if (AppState.currentState !== 'active') return;
+        register();
+      } catch (error) { console.warn('[Incoming call] Local check deferred:', error.message); }
+    };
+    const unsubscribe = subscribeCalls(present);
+    register();
+    consumeInitialCallAction().then(present).catch((error) => console.warn('[Call push] Initial action:', error.message));
+    checkLocal();
+    const stateSubscription = AppState.addEventListener('change', (state) => { if (state === 'active') checkLocal(); });
+    return () => { alive = false; cleanupTokens?.(); unsubscribe(); stateSubscription.remove(); };
+  }, []);
   return null;
 }

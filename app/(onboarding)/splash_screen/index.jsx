@@ -1,3 +1,4 @@
+import { useSelector } from 'react-redux';
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -7,13 +8,14 @@ import SplashImage from '../../../assets/icons/splashImage.svg';
 
 export default function SplashScreen() {
   const router = useRouter();
+  const token = useSelector((state) => state.auth.token);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      router.replace('/(auth)/login');
+      router.replace(token ? '/(main)/(tabs)/requests' : '/(auth)/login');
     }, 3000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [token, router]);
 
   return (
     <View style={styles.container}>

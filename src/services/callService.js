@@ -25,7 +25,7 @@ export const callService = {
       });
       return response;
     } catch (error) {
-      console.error("[callService.initiateCall] Error:", error);
+      console.error("[callService.initiateCall] Error:", error.response?.status || error.code || error.message);
       throw error;
     }
   },
@@ -39,7 +39,7 @@ export const callService = {
       const response = await api.get(`/calls/${callId}/status`);
       return response;
     } catch (error) {
-      console.error("[callService.getCallStatus] Error:", error);
+      console.error("[callService.getCallStatus] Error:", error.response?.status || error.code || error.message);
       throw error;
     }
   },
@@ -53,7 +53,7 @@ export const callService = {
       const response = await api.post(`/calls/${callId}/accept`);
       return response;
     } catch (error) {
-      console.error("[callService.acceptCall] Error:", error);
+      console.error("[callService.acceptCall] Error:", error.response?.status || error.code || error.message);
       throw error;
     }
   },
@@ -67,7 +67,7 @@ export const callService = {
       const response = await api.post(`/calls/${callId}/decline`);
       return response.data || response;
     } catch (error) {
-      console.error("[callService.declineCall] Error:", error);
+      console.error("[callService.declineCall] Error:", error.response?.status || error.code || error.message);
       throw error;
     }
   },
@@ -82,7 +82,7 @@ export const callService = {
       const response = await api.post(`/calls/${callId}/end`, { reason });
       return response.data || response;
     } catch (error) {
-      console.error("[callService.endCall] Error:", error);
+      console.error("[callService.endCall] Error:", error.response?.status || error.code || error.message);
       throw error;
     }
   },
@@ -97,7 +97,7 @@ export const callService = {
       });
       return response.data || response;
     } catch (error) {
-      console.error("[callService.getCallHistory] Error:", error);
+      console.error("[callService.getCallHistory] Error:", error.response?.status || error.code || error.message);
       throw error;
     }
   },
@@ -124,7 +124,7 @@ export const callService = {
       const response = await api.post("/calls/device-token", { fcmToken });
       return response.data || response;
     } catch (error) {
-      console.error("[callService.registerDeviceToken] Error:", error);
+      console.error("[callService.registerDeviceToken] Error:", error.response?.status || error.code || error.message);
       throw error;
     }
   },

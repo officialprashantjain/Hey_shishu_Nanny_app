@@ -1,0 +1,30 @@
+
+> heyshishu-mobileapp@1.0.0 test
+> node --test tests/*.test.cjs
+
+✔ saved secure session survives a new JavaScript process and supports legacy token migration (322.030458ms)
+✔ failed secure storage writes reject login instead of pretending it was persisted (18.706541ms)
+✔ a wrong password does not erase an existing session or trigger refresh (90.374791ms)
+✔ concurrent 401s refresh once, persist rotation and retry every original request (70.684375ms)
+✔ offline refresh keeps credentials and cold-start restoration can retry later (24.972875ms)
+✔ revoked refresh clears credentials and does not enter an infinite retry loop (23.425292ms)
+✔ logout during a refresh cannot recreate the logged-out session (26.638917ms)
+✔ Android background call has full-screen intent, caller details and Answer/Decline actions (52.346041ms)
+✔ expired pushes never ring and active notification has timer and End action (28.892625ms)
+✔ Android decline notification calls backend and dismisses native UI (43.061125ms)
+✔ iOS queued CallKit display then Answer is replayed before navigation (62.628333ms)
+✔ an offline End action removes call UI immediately while its request is pending (70.518084ms)
+✔ reopening with a fresh access token restores immediately without a refresh round trip (42.8155ms)
+✔ explicit logout clears secure storage before a slow server revocation completes (73.725542ms)
+✔ call audio preparation waits for every registered microphone/playback cleanup (79.752ms)
+✔ the shared chat call launcher releases media and forwards the server UUID (283.727959ms)
+✔ incoming call waits for a voice note that is still acquiring its microphone (9.9945ms)
+✔ incoming call does not stop a voice note twice while Send is finishing (6.200333ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1874.420667

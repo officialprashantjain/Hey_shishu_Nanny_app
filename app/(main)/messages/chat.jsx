@@ -21,7 +21,8 @@ import { CustomImage as Image } from "../../../src/components/common/CustomImage
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
-import callService from "../../../src/services/callService";
+import { initiateOutgoingCall } from "../../../src/utils/callLauncher";
+import useChatCallMedia from "../../../src/hooks/useChatCallMedia";
 
 const { width, height } = Dimensions.get("window");
 
@@ -74,13 +75,15 @@ export default function ActiveChatScreen() {
     scrollToBottom();
   }, [messages]);
 
-  useEffect(() => {
-    return () => {
-      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-      if (playbackTimerRef.current) clearInterval(playbackTimerRef.current);
-      if (sound) sound.unloadAsync();
-    };
-  }, [sound]);
+  const mediaRef = useChatCallMedia(() => {
+    clearInterval(recordingTimerRef.current);
+    clearInterval(playbackTimerRef.current);
+    setRecording(null);
+    setSound(null);
+    setIsRecording(false);
+    setRecordingSeconds(0);
+    setPlayingAudioId(null);
+  });
 
   const handleSend = (text, type = "text", meta = {}) => {
     if (!text && type === "text") return;
@@ -116,17 +119,23 @@ export default function ActiveChatScreen() {
   };
 
   const startRecording = async () => {
+    mediaRef.current.cancelled = false;
     try {
       const permission = await Audio.requestPermissionsAsync();
       if (permission.status === "granted") {
+        if (mediaRef.current.cancelled) return;
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
         });
 
-        const { recording } = await Audio.Recording.createAsync(
-          Audio.RecordingOptionsPresets.HIGH_QUALITY,
-        );
+        if (mediaRef.current.cancelled) return;
+        const pendingRecording = Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        mediaRef.current.pendingRecording = pendingRecording;
+        const { recording } = await pendingRecording;
+        mediaRef.current.recording = recording;
+        mediaRef.current.pendingRecording = null;
+        if (mediaRef.current.cancelled) return;
         setRecording(recording);
         setIsRecording(true);
         setRecordingSeconds(0);
@@ -139,6 +148,7 @@ export default function ActiveChatScreen() {
         alert("Permission to record audio is required!");
       }
     } catch (err) {
+      mediaRef.current.pendingRecording = null;
       console.error("Failed to start recording", err);
     }
   };
@@ -149,8 +159,12 @@ export default function ActiveChatScreen() {
       setIsRecording(false);
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
 
-      await recording.stopAndUnloadAsync();
+      const stopping = recording.stopAndUnloadAsync();
+      mediaRef.current.pendingRecordingStop = stopping;
+      await stopping;
+      mediaRef.current.pendingRecordingStop = null;
       const uri = recording.getURI();
+      mediaRef.current.recording = null;
       setRecording(null);
 
       const durationStr = formatRecordingTime(recordingSeconds);
@@ -167,7 +181,11 @@ export default function ActiveChatScreen() {
       setIsRecording(false);
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
 
-      await recording.stopAndUnloadAsync();
+      const stopping = recording.stopAndUnloadAsync();
+      mediaRef.current.pendingRecordingStop = stopping;
+      await stopping;
+      mediaRef.current.pendingRecordingStop = null;
+      mediaRef.current.recording = null;
       setRecording(null);
       setRecordingSeconds(0);
     } catch (err) {
@@ -176,17 +194,20 @@ export default function ActiveChatScreen() {
   };
 
   const togglePlayAudio = async (msgId, uri) => {
+    mediaRef.current.cancelled = false;
     try {
       if (playingAudioId === msgId) {
         if (sound) {
           await sound.stopAsync();
           await sound.unloadAsync();
+          mediaRef.current.sound = null;
           setSound(null);
         }
         setPlayingAudioId(null);
       } else {
         if (sound) {
           await sound.unloadAsync();
+          mediaRef.current.sound = null;
           setSound(null);
         }
         setPlayingAudioId(msgId);
@@ -197,15 +218,19 @@ export default function ActiveChatScreen() {
               uri ||
               "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
           },
-          { shouldPlay: true },
+          { shouldPlay: false },
         );
+        if (mediaRef.current.cancelled) { await newSound.unloadAsync(); return; }
+        mediaRef.current.sound = newSound;
+        await newSound.playAsync();
         setSound(newSound);
 
         newSound.setOnPlaybackStatusUpdate(async (status) => {
           if (status.didJustFinish) {
             setPlayingAudioId(null);
             await newSound.unloadAsync();
-            setSound(null);
+            mediaRef.current.sound = null;
+          setSound(null);
           }
         });
       }
@@ -317,66 +342,14 @@ export default function ActiveChatScreen() {
     router.push("/(main)/messages/request-session");
   };
 
-  const handleStartCall = async (callType) => {
-    try {
-      const targetReceiverId = params.receiverId || params.parentId || params.nannyId || params.id || params.userId;
-      if (!targetReceiverId) {
-        Alert.alert(
-          "Notice",
-          "No recipient ID linked to this chat. Launching call test screen.",
-          [
-            {
-              text: "Continue",
-              onPress: () => {
-                router.push({
-                  pathname: "/(main)/messages/active_call",
-                  params: {
-                    callType,
-                    mode: "outgoing",
-                    remoteName: tutorName,
-                  },
-                });
-              },
-            },
-          ]
-        );
-        return;
-      }
-
-      console.log(`\n🚀 [INITIATING ${callType.toUpperCase()} CALL] Calling ${tutorName} (Recipient ID: ${targetReceiverId})...`);
-
-      const res = await callService.initiateCall({
-        receiverId: targetReceiverId,
-        callType,
-      });
-
-      console.log(`✅ [CALL API SUCCESS] Call ID: ${res?.data?.callId} | Channel: ${res?.data?.channelName} | Local UID: ${res?.data?.uid}`);
-
-      if (res?.status === "busy") {
-        console.warn(`⚠️ [CALL BUSY] Recipient is busy on another call.`);
-        Alert.alert("User Busy", res.message || `${tutorName} is currently on another call.`);
-        return;
-      }
-
-      router.push({
-        pathname: "/(main)/messages/active_call",
-        params: {
-          callId: res.data.callId,
-          callType,
-          mode: "outgoing",
-          channelName: res.data.channelName,
-          token: res.data.token,
-          uid: res.data.uid,
-          agoraAppId: res.data.agoraAppId,
-          remoteName: res.data.receiver?.name || tutorName,
-          remotePhoto: res.data.receiver?.photo || "",
-        },
-      });
-    } catch (err) {
-      console.error("❌ [startCall error]:", err);
-      Alert.alert("Call Error", err?.response?.data?.message || err.message || "Failed to initiate call.");
-    }
-  };
+  const handleStartCall = (callType) => initiateOutgoingCall({
+    router,
+    receiverId: params.receiverId || params.parentId || params.nannyId || params.id || params.userId,
+    receiverName: tutorName,
+    receiverPhoto: params.photo || params.remotePhoto || '',
+    bookingId: params.bookingId || null,
+    callType,
+  });
 
   const startVideoCall = () => handleStartCall("video");
   const startAudioCall = () => handleStartCall("audio");

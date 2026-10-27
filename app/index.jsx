@@ -1,5 +1,6 @@
 import { Redirect } from 'expo-router';
-
+import { useSelector } from 'react-redux';
 export default function Index() {
-  return <Redirect href="/(onboarding)/splash_screen" />;
+  const token = useSelector((state) => state.auth.token);
+  return <Redirect href={token ? '/(main)/(tabs)/requests' : '/(onboarding)/splash_screen'} />;
 }

@@ -1,3 +1,4 @@
+import SessionBootstrap from '../src/components/SessionBootstrap';
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -27,6 +28,7 @@ export default function RootLayout() {
 
   return (
     <Provider store={store}>
+      <SessionBootstrap>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <AlertProvider>
@@ -38,6 +40,7 @@ export default function RootLayout() {
           </AlertProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
+    </SessionBootstrap>
     </Provider>
   );
 }
