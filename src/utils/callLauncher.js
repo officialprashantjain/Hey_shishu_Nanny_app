@@ -51,7 +51,23 @@ export async function initiateOutgoingCall({
 
     console.log(`✅ [CALL SESSION CREATED] ID: ${sessionData.callId} | Channel: ${sessionData.channelName} | Local UID: ${sessionData.uid}`);
 
-    await startNativeOutgoingCall({ ...sessionData, callId: sessionData.callId, mode: 'outgoing', callType, remoteName: receiverName, remotePhoto: receiverPhoto || '' });
+    const targetUserId = receiverId || sessionData.receiver?.id || '';
+    const targetName = sessionData.receiver?.name || receiverName;
+    const targetPhoto = sessionData.receiver?.photo || receiverPhoto || '';
+    const targetBookingId = bookingId || sessionData.bookingId || '';
+    const targetRole = sessionData.receiver?.role || 'parent';
+
+    await startNativeOutgoingCall({
+      ...sessionData,
+      callId: sessionData.callId,
+      mode: 'outgoing',
+      callType,
+      remoteName: targetName,
+      remotePhoto: targetPhoto,
+      remoteUserId: targetUserId,
+      bookingId: targetBookingId,
+      receiverRole: targetRole,
+    });
     router.push({
       pathname: '/(main)/messages/active_call',
       params: {
@@ -63,14 +79,33 @@ export async function initiateOutgoingCall({
         token: sessionData.token,
         uid: sessionData.uid,
         agoraAppId: sessionData.agoraAppId,
-        remoteName: sessionData.receiver?.name || receiverName,
-        remotePhoto: sessionData.receiver?.photo || receiverPhoto || '',
+        remoteName: targetName,
+        remotePhoto: targetPhoto,
+        remoteUserId: targetUserId,
+        receiverId: targetUserId,
+        parentId: targetUserId,
+        bookingId: targetBookingId,
+        receiverRole: targetRole,
       },
     });
   } catch (err) {
     console.error('❌ [initiateOutgoingCall error]:', err.response?.status || err.code || err.message);
     Alert.alert('Call Error', err?.response?.data?.message || err.message || 'Failed to start call. Please try again.');
   }
+}
+
+let callModalListener = null;
+
+/**
+ * Register a UI modal listener to present custom call options
+ */
+export function registerCallModalListener(listener) {
+  callModalListener = listener;
+  return () => {
+    if (callModalListener === listener) {
+      callModalListener = null;
+    }
+  };
 }
 
 /**
@@ -84,6 +119,18 @@ export function promptAndStartCall({
   bookingId = null,
   phone = null,
 }) {
+  if (typeof callModalListener === 'function') {
+    callModalListener({
+      router,
+      receiverId,
+      receiverName,
+      receiverPhoto,
+      bookingId,
+      phone,
+    });
+    return;
+  }
+
   const options = [];
 
   if (phone) {
@@ -140,4 +187,5 @@ export function promptAndStartCall({
 export default {
   initiateOutgoingCall,
   promptAndStartCall,
+  registerCallModalListener,
 };

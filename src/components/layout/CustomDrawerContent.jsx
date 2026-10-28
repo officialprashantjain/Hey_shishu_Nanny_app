@@ -100,7 +100,10 @@ export default function CustomDrawerContent(props) {
       <View style={styles.menuSection}>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(insets.bottom, 24) + 40 }
+          ]}
         >
           {menuItems.map((item, index) => (
             <TouchableOpacity

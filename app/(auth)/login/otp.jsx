@@ -40,6 +40,7 @@ export default function LoginOTPScreen() {
   });
   const inputRef = useRef(null);
   const lastCopiedOtpRef = useRef("");
+  const dismissedOtpRef = useRef("");
 
   const showAlert = (title, message, type = "success") => {
     setAlertModal({ visible: true, title, message, type });
@@ -59,8 +60,12 @@ export default function LoginOTPScreen() {
       const match = text.match(/\b\d{4}\b/);
       if (match) {
         const foundOtp = match[0];
+        // If this OTP is marked as dismissed (old/expired/cleared on resend), ignore it
+        if (foundOtp === dismissedOtpRef.current) return;
+        // Auto-fill if new or different from last copied OTP
         if (foundOtp && foundOtp !== lastCopiedOtpRef.current) {
           lastCopiedOtpRef.current = foundOtp;
+          dismissedOtpRef.current = ""; // Fresh valid OTP arrived, clear dismissed state
           setOtp(foundOtp);
         }
       }
@@ -70,14 +75,30 @@ export default function LoginOTPScreen() {
   };
 
   useEffect(() => {
+    // When screen mounts, clean up any stale 4-digit code in clipboard from earlier sessions
+    const initClipboard = async () => {
+      try {
+        const hasString = await Clipboard.hasStringAsync();
+        if (hasString) {
+          const text = await Clipboard.getStringAsync();
+          const match = text?.match(/\b\d{4}\b/);
+          if (match) {
+            dismissedOtpRef.current = match[0];
+            lastCopiedOtpRef.current = match[0];
+          }
+          await Clipboard.setStringAsync("");
+        }
+      } catch {}
+    };
+    initClipboard();
+
     const timer = setTimeout(() => {
       inputRef.current?.focus();
-      checkClipboardForOtp();
     }, 300);
     return () => clearTimeout(timer);
   }, []);
 
-  // Listen to AppState changes (e.g. when user interacts with Truecaller notification and returns)
+  // Listen to AppState changes and poll clipboard for newly copied OTPs (e.g. Truecaller floating popup)
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
@@ -86,16 +107,14 @@ export default function LoginOTPScreen() {
     });
 
     const interval = setInterval(() => {
-      if (otp.length < 4) {
-        checkClipboardForOtp();
-      }
-    }, 1200);
+      checkClipboardForOtp();
+    }, 1000);
 
     return () => {
       subscription.remove();
       clearInterval(interval);
     };
-  }, [otp.length]);
+  }, []);
 
   useEffect(() => {
     if (resendTimer <= 0) return;
@@ -157,11 +176,21 @@ export default function LoginOTPScreen() {
   const handleResendOtp = async () => {
     if (resendTimer > 0 || !phoneNumber) return;
 
+    // Mark current OTP as dismissed and immediately empty boxes
+    const oldOtp = otp || lastCopiedOtpRef.current;
+    if (oldOtp) {
+      dismissedOtpRef.current = oldOtp;
+    }
+    setOtp("");
+    lastCopiedOtpRef.current = oldOtp || "";
+
+    // Clear system clipboard so device doesn't retain old OTP
+    try {
+      await Clipboard.setStringAsync("");
+    } catch {}
+
     const result = await dispatch(sendOtp(phoneNumber));
     if (result.success) {
-      // Reset the 4 digit OTP boxes automatically
-      setOtp("");
-      lastCopiedOtpRef.current = "";
       inputRef.current?.focus();
       setResendTimer(39);
       showAlert(

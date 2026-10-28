@@ -18,6 +18,7 @@ import { sendStartOtpApi } from '../../../../src/services/bookingService';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo } from 'react';
 import { useAlert } from '../../../../src/contexts/AlertContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import callService from '../../../../src/services/callService';
 import { promptAndStartCall } from '../../../../src/utils/callLauncher';
 import { resolveParentName, resolveParentPhone } from '../../../../src/utils/parentHelper';
@@ -25,6 +26,7 @@ import { resolveParentName, resolveParentPhone } from '../../../../src/utils/par
 const { width } = Dimensions.get('window');
 
 export default function OnTheWayScreen() {
+  const insets = useSafeAreaInsets();
   const [isFullScreen, setIsFullScreen] = useState(false);
   const router = useRouter();
   const mapRef = useRef(null);
@@ -468,7 +470,7 @@ export default function OnTheWayScreen() {
       </View>
 
       {/* ── BOTTOM SHEET ─────────────────────────────────────────────────── */}
-      {!isFullScreen && <View style={styles.bottomCard}>
+      {!isFullScreen && <View style={[styles.bottomCard, { paddingBottom: Math.max(insets.bottom, 20) + 16 }]}>
         <View style={styles.dragIndicator} />
 
         <View style={styles.statusRow}>

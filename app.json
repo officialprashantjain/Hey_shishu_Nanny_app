@@ -34,7 +34,7 @@
       "package": "com.heyshishu.nannyapp",
       "edgeToEdgeEnabled": true,
       "navigationBarColor": "#FFF6E6",
-      "navigationBarTranslucent": true,
+      "navigationBarTranslucent": false,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyCnEoSKrvhVCjBOywvoxVe7O8dCFBCVp2s"

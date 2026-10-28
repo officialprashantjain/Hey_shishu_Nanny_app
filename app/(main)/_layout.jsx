@@ -5,6 +5,7 @@ import CustomDrawerContent from '../../src/components/layout/CustomDrawerContent
 import { colors } from '../../constants/color';
 import IncomingCallWatcher from '../../src/components/common/IncomingCallWatcher';
 import ActiveCallTopBanner from '../../src/components/common/ActiveCallTopBanner';
+import CallOptionModal from '../../src/components/common/CallOptionModal';
 
 export default function MainLayout() {
   const token = useSelector((state) => state.auth.token);
@@ -13,6 +14,7 @@ export default function MainLayout() {
     <>
       <IncomingCallWatcher />
       <ActiveCallTopBanner />
+      <CallOptionModal />
       <Drawer
         drawerContent={(props) => <CustomDrawerContent {...props} />}
         screenOptions={{

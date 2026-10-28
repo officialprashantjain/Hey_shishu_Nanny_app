@@ -3,7 +3,7 @@ import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider } from 'react-redux';
 import store from '../src/redux/store';
@@ -30,7 +30,7 @@ export default function RootLayout() {
     <Provider store={store}>
       <SessionBootstrap>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
           <AlertProvider>
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(onboarding)" />

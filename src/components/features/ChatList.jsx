@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,52 +8,116 @@ import {
   TextInput,
   Dimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { CustomImage as Image } from "../common/CustomImage";
 import { useRouter } from "expo-router";
 import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
+import chatService from "../../services/chatService";
+import socketService from "../../services/socketService";
 
 const { width } = Dimensions.get("window");
 
+const formatRelativeTime = (isoString) => {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHour < 24) return `${diffHour}h ago`;
+  if (diffDay === 1) return "Yesterday";
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+};
+
 export default function ChatList({ showBackButton = false, backRoute }) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState("");
+  const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const chatData = [
-    {
-      id: "robert_fox",
-      name: "John Parent",
-      subject: "Babysitting",
-      message: "Hello, I need help with babysitting this weekend.",
-      time: "3h ago",
-      isOnline: false,
-      avatarBg: "#D7DFE9",
-    },
-    {
-      id: "jane_cooper",
-      name: "Jane Cooper",
-      subject: "Nanny Services",
-      message: "Hello, can we discuss the schedule?",
-      time: "19h ago",
-      isOnline: true,
-      avatarBg: "#D7DFE9",
-    },
-  ];
+  const loadConversations = async () => {
+    try {
+      await socketService.connect();
+      const list = await chatService.getConversations();
 
-  const filteredChats = chatData.filter(
+      // Deduplicate so each recipient appears only once in the list
+      const seen = new Set();
+      const uniqueList = (list || []).filter((conv) => {
+        const recipientId = conv.recipient?.id || conv.recipient?._id;
+        if (!recipientId) return true;
+        const key = String(recipientId);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      const mapped = uniqueList.map((conv) => ({
+        _id: conv._id,
+        id: String(conv._id),
+        recipient: conv.recipient,
+        name: conv.recipient?.name || "Parent",
+        subject: "Parent",
+        message: conv.lastMessage?.text || "No messages yet",
+        time: formatRelativeTime(conv.lastMessage?.sentAt || conv.updatedAt),
+        unreadCount: conv.unreadCount || 0,
+        bookingId: conv.bookingId || null,
+        isOnline: false,
+      }));
+      setConversations(mapped);
+    } catch (err) {
+      console.warn("[Nanny ChatList] Error fetching conversations:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadConversations();
+    }, [])
+  );
+
+  useEffect(() => {
+    const handleConvUpdated = () => {
+      loadConversations();
+    };
+
+    socketService.on("conversation_updated", handleConvUpdated);
+    return () => {
+      socketService.off("conversation_updated", handleConvUpdated);
+    };
+  }, []);
+
+  const filteredChats = conversations.filter(
     (chat) =>
       chat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      chat.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      chat.message.toLowerCase().includes(searchQuery.toLowerCase()),
+      chat.message.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleChatPress = (chat) => {
     router.push({
       pathname: "/(main)/messages/chat",
-      params: { name: chat.name, subject: chat.subject },
+      params: {
+        conversationId: chat._id,
+        receiverId: chat.recipient?.id,
+        receiverRole: "parent",
+        bookingId: chat.bookingId || "",
+        name: chat.name,
+        photo: chat.recipient?.photo || "",
+        subject: "Parent",
+      },
     });
   };
+
 
   return (
     <View style={styles.container}>
@@ -78,7 +142,10 @@ export default function ChatList({ showBackButton = false, backRoute }) {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 24) + 80 }
+        ]}
       >
         <View style={styles.searchContainer}>
           <Image
@@ -107,7 +174,7 @@ export default function ChatList({ showBackButton = false, backRoute }) {
                 <View style={styles.avatarWrapper}>
                   <View style={[styles.avatar]}>
                     <Image
-                      source={require("../../../assets/icons/nanny-image.svg")}
+                      source={chat.recipient?.photo ? { uri: chat.recipient.photo } : require("../../../assets/icons/nanny-image.svg")}
                       style={styles.avatarIcon}
                       contentFit="cover"
                     />
@@ -123,22 +190,27 @@ export default function ChatList({ showBackButton = false, backRoute }) {
                 </View>
 
                 <View style={styles.chatDetails}>
-                  <View style={styles.rowBetween}>
-                    <View style={styles.nameTagRow}>
-                      <Text style={styles.chatName}>{chat.name}</Text>
-                      <View style={styles.subjectBadge}>
-                        <Text style={styles.subjectTagText}>
-                          {chat.subject}
-                        </Text>
-                      </View>
+                  <View style={styles.nameTagRow}>
+                    <Text style={styles.chatName}>{chat.name}</Text>
+                    <View style={styles.subjectBadge}>
+                      <Text style={styles.subjectTagText}>
+                        {chat.subject}
+                      </Text>
                     </View>
                   </View>
 
                   <View style={styles.rowBetween}>
-                    <Text style={styles.lastMessage} numberOfLines={1}>
+                    <Text style={[styles.lastMessage, chat.unreadCount > 0 && { fontWeight: "700", color: "#18181B" }]} numberOfLines={1}>
                       {chat.message}
                     </Text>
-                    <Text style={styles.timeText}>{chat.time}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={styles.timeText}>{chat.time}</Text>
+                      {chat.unreadCount > 0 && (
+                        <View style={{ backgroundColor: "#22C55E", borderRadius: 10, minWidth: 18, height: 18, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
+                          <Text style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "700" }}>{chat.unreadCount}</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                 </View>
               </TouchableOpacity>

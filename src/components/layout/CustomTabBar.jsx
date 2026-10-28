@@ -8,8 +8,11 @@ import { Ionicons } from '@expo/vector-icons';
 export function CustomTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
 
+  const bottomInset = Math.max(insets.bottom, 12);
+  const extraPadding = Platform.OS === 'android' ? 10 : 6;
+
   return (
-    <View style={[styles.tabBar, { paddingBottom: insets.bottom || 12 }]}>
+    <View style={[styles.tabBar, { paddingBottom: bottomInset + extraPadding }]}>
       {state.routes.map((route, index) => {
         const isFocused = state.index === index;
 

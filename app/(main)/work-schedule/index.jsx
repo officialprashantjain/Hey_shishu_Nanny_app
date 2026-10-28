@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Header } from '../../../src/components/layout/Header';
 import { colors } from '../../../constants/color';
 import { fonts } from '../../../constants/font';
@@ -19,7 +20,7 @@ export default function WorkScheduleScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <Header title="Work Schedule" showBack />
         
         {/* Top Tabs */}

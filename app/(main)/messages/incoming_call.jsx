@@ -53,9 +53,25 @@ export default function IncomingCallScreen() {
       const response = await callService.acceptCall(callId);
       const data = response.data;
       if (!data?.token || !data.channelName || !data.agoraAppId) throw new Error('Missing call credentials.');
-      const active = { callId, uuid: data.uuid || uuid, callType, mode: 'incoming', channelName: data.channelName,
-        token: data.token, uid: data.uid, agoraAppId: data.agoraAppId, startedAt: data.startedAt,
-        remoteName: callerName, remotePhoto: callerPhoto || '' };
+      const callerId = data.caller?.id || params.callerId || '';
+      const active = {
+        callId,
+        uuid: data.uuid || uuid,
+        callType,
+        mode: 'incoming',
+        channelName: data.channelName,
+        token: data.token,
+        uid: data.uid,
+        agoraAppId: data.agoraAppId,
+        startedAt: data.startedAt,
+        remoteName: data.caller?.name || callerName,
+        remotePhoto: data.caller?.photo || callerPhoto || '',
+        remoteUserId: callerId,
+        receiverId: callerId,
+        parentId: callerId,
+        bookingId: data.bookingId || params.bookingId || '',
+        receiverRole: data.caller?.role || 'parent',
+      };
       done.current = true;
       await markCallAnswered(active);
       router.replace({ pathname: '/(main)/messages/active_call', params: active });

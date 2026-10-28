@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { CustomImage as Image } from "../../../src/components/common/CustomImage";
 import { useRouter } from "expo-router";
 import { colors } from "../../../constants/color";
@@ -14,6 +14,7 @@ import { fonts } from "../../../constants/font";
 
 export default function LoginSecurityScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const options = [
     {
@@ -86,7 +87,7 @@ export default function LoginSecurityScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
         <TouchableOpacity style={styles.saveBtn} onPress={() => router.back()}>
           <Text style={styles.saveBtnText}>Save Changes</Text>
         </TouchableOpacity>
@@ -196,7 +197,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderRadius: 30,
     alignItems: "center",
-    marginBottom: 60,
+    marginBottom: 0,
   },
   saveBtnText: {
     fontFamily: fonts.rubikBold,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CustomImage as Image } from '../../../src/components/common/CustomImage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -13,6 +13,7 @@ import { getBookingDetailAsNanny } from '../../../src/services/bookingService';
 export default function BookingDetailsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
 
   const [bookingData, setBookingData] = useState({
     id: params.id || '',
@@ -91,10 +92,13 @@ export default function BookingDetailsScreen() {
         name: bookingData.parentName, 
         parentId: bookingData.parentId,
         receiverId: bookingData.parentId,
-        subject: 'Babysitting' 
+        bookingId: bookingData.id,
+        photo: bookingData.parentPhoto,
+        subject: 'Babysitting',
       }
     });
   };
+
 
   const handleCallParent = () => {
     promptAndStartCall({
@@ -132,7 +136,11 @@ export default function BookingDetailsScreen() {
         </View>
       </SafeAreaView>
 
-      <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollContent}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 24) + 40 }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Parent Details Card */}
         <View style={styles.card}>
           <Text style={styles.cardSectionTitle}>Parent Details</Text>

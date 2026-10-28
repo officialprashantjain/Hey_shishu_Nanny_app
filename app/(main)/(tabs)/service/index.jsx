@@ -433,12 +433,13 @@ export default function ServiceScreen() {
           onPress={handleOpenEndOtpModal}
           style={{
             marginTop: 20,
-            marginBottom: 40,
+            marginBottom: 20,
             borderRadius: 30,
             backgroundColor: colors.primary // using primary color distinct from purple
           }}
         />
 
+        <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* ── OTP SERVICE COMPLETION MODAL ───────────────────────────────── */}

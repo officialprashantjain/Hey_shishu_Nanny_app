@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, StatusBar, Platform, Animated, BackHandler } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CustomImage as Image } from '../../../src/components/common/CustomImage';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Constants from 'expo-constants';
@@ -9,10 +10,14 @@ import callSessionManager, { useCallSession } from '../../../src/services/callSe
 
 const { width, height } = Dimensions.get('window');
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
-const { RtcSurfaceView, VideoSourceType } = isExpoGo
+const { RtcSurfaceView, RtcTextureView, VideoSourceType, RenderModeType } = isExpoGo
   ? require('../../../src/utils/agora-mock') : require('react-native-agora');
 
+// On Android, TextureView avoids the native SurfaceView layer occlusion / black screen bug in overlays
+const LocalVideoView = Platform.OS === 'android' ? (RtcTextureView || RtcSurfaceView) : RtcSurfaceView;
+
 export default function ActiveCallScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
   const { callId, uuid, channelName, token, agoraAppId } = params;
@@ -35,6 +40,32 @@ export default function ActiveCallScreen() {
   const isSpeakerOn = session?.isSpeakerOn ?? (callType === 'video');
   const callStatusMessage = session?.callStatusMessage ?? (mode === 'outgoing' ? 'Ringing…' : 'Connecting…');
 
+  const remoteUserId = params.remoteUserId || params.receiverId || params.callerId || params.parentId || null;
+  const bookingId = params.bookingId || null;
+  const receiverRole = params.receiverRole || 'parent';
+
+  const navigateToChat = (summary = null) => {
+    const targetUserId = summary?.remoteUserId || session?.remoteUserId || remoteUserId || '';
+    const targetName = summary?.remoteName || session?.remoteName || remoteName || 'Parent';
+    const targetPhoto = summary?.remotePhoto || session?.remotePhoto || remotePhoto || '';
+    const targetBookingId = summary?.bookingId || session?.bookingId || bookingId || '';
+    const targetRole = summary?.receiverRole || session?.receiverRole || receiverRole || 'parent';
+
+    router.replace({
+      pathname: '/(main)/messages/chat',
+      params: {
+        receiverId: targetUserId,
+        parentId: targetUserId,
+        userId: targetUserId,
+        name: targetName,
+        photo: targetPhoto,
+        bookingId: targetBookingId,
+        receiverRole: targetRole,
+        subject: 'Babysitting',
+      },
+    });
+  };
+
   const handleMinimize = () => {
     callSessionManager.minimizeCall();
     if (router.canGoBack()) {
@@ -45,10 +76,9 @@ export default function ActiveCallScreen() {
   };
 
   const handleHangup = async () => {
-    const duration = session?.callDuration || 0;
-    const targetName = session?.remoteName || remoteName;
     await callSessionManager.endCall(mode === 'outgoing' ? 'caller_hangup' : 'receiver_hangup');
-    router.replace({ pathname: '/(main)/messages/rating', params: { duration, remoteName: targetName } });
+    const last = callSessionManager.getLastSummary();
+    navigateToChat(last);
   };
 
   useEffect(() => {
@@ -73,6 +103,9 @@ export default function ActiveCallScreen() {
         mode,
         remoteName,
         remotePhoto,
+        remoteUserId,
+        bookingId,
+        receiverRole,
         startedAt: params.startedAt,
       });
     }
@@ -93,13 +126,7 @@ export default function ActiveCallScreen() {
       hadActiveCall.current = true;
     } else if (hadActiveCall.current) {
       const last = callSessionManager.getLastSummary();
-      router.replace({
-        pathname: '/(main)/messages/rating',
-        params: {
-          duration: last?.duration || 0,
-          remoteName: last?.remoteName || remoteName,
-        },
-      });
+      navigateToChat(last);
     }
   }, [session?.callId]);
 
@@ -140,9 +167,16 @@ export default function ActiveCallScreen() {
           {isJoined && (
             <View style={styles.localPipOverlay}>
               {!isCameraOff ? (
-                <RtcSurfaceView
+                <LocalVideoView
+                  key={`local-pip-${isCameraOff ? 'off' : 'on'}`}
                   style={styles.localVideoFeed}
-                  canvas={{ uid: 0, sourceType: VideoSourceType.VideoSourceCamera }}
+                  zOrderMediaOverlay={true}
+                  zOrderOnTop={true}
+                  canvas={{
+                    uid: 0,
+                    sourceType: VideoSourceType.VideoSourceCamera,
+                    renderMode: RenderModeType?.RenderModeHidden ?? 1,
+                  }}
                 />
               ) : (
                 <View style={styles.cameraOffCover}>
@@ -196,7 +230,7 @@ export default function ActiveCallScreen() {
       </View>
 
       {/* ── BOTTOM DOCK CONTROLS ── */}
-      <View style={styles.bottomDockContainer}>
+      <View style={[styles.bottomDockContainer, { bottom: Math.max(insets.bottom, 20) + 12 }]}>
         <View style={styles.controlDock}>
           <View style={styles.controlsRow}>
             {/* Camera Toggle (Video Call Only) */}

@@ -8,7 +8,7 @@ import {
   Modal,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { CustomImage as Image } from "../../../src/components/common/CustomImage";
 import { useRouter, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -29,6 +29,7 @@ import { useAlert } from "../../../src/contexts/AlertContext";
 export default function ProfileScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
   const { showAlert } = useAlert();
   const user = useSelector(selectUser);
   const profile = useSelector(selectProfile);
@@ -215,7 +216,10 @@ export default function ProfileScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 24) + 60 },
+        ]}
       >
         <View style={styles.userCard}>
           <View style={styles.avatarRow}>

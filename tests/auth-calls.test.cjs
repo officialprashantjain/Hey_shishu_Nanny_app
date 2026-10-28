@@ -282,3 +282,27 @@ test('callSessionManager keeps call running when screen is detached (minimized)'
   assert.equal(manager.getState(), null);
 });
 
+test('callLauncher dispatches to custom call modal listener when registered', async () => {
+  const fixture = harness();
+  const launcher = fixture.load('src/utils/callLauncher.js');
+  let receivedData = null;
+
+  const unregister = launcher.registerCallModalListener((data) => {
+    receivedData = data;
+  });
+
+  launcher.promptAndStartCall({
+    receiverId: 'parent-123',
+    receiverName: 'Prashant jain',
+    receiverPhoto: 'https://example.com/photo.jpg',
+    bookingId: 'booking-456',
+    phone: '+91 8107399789',
+  });
+
+  assert.equal(receivedData?.receiverId, 'parent-123');
+  assert.equal(receivedData?.receiverName, 'Prashant jain');
+  assert.equal(receivedData?.phone, '+91 8107399789');
+
+  unregister();
+});
+

@@ -15,7 +15,9 @@ import {
   Platform,
   FlatList,
   Alert,
+  Linking,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomImage as Image } from "../../../src/components/common/CustomImage";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -23,8 +25,75 @@ import { colors } from "../../../constants/color";
 import { fonts } from "../../../constants/font";
 import { initiateOutgoingCall } from "../../../src/utils/callLauncher";
 import useChatCallMedia from "../../../src/hooks/useChatCallMedia";
+import socketService from "../../../src/services/socketService";
+import chatService from "../../../src/services/chatService";
+import { getSession } from "../../../src/utils/storage";
 
 const { width, height } = Dimensions.get("window");
+
+const formatFileSize = (size) => {
+  if (!size) return "";
+  if (typeof size === "string" && (size.includes("KB") || size.includes("MB") || size.includes("Bytes") || size.includes("B"))) {
+    return size;
+  }
+  const bytes = Number(size);
+  if (isNaN(bytes) || bytes <= 0) return typeof size === "string" ? size : "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const getDocumentInfo = (filename, uri) => {
+  const name = String(filename || uri || "");
+  const ext = name.includes(".") ? name.split(".").pop().toLowerCase().split("?")[0] : "pdf";
+  if (["pdf"].includes(ext)) {
+    return { ext: "PDF", bg: "#FEE2E2", color: "#EF4444" };
+  }
+  if (["doc", "docx"].includes(ext)) {
+    return { ext: "DOC", bg: "#E0F2FE", color: "#0284C7" };
+  }
+  if (["xls", "xlsx", "csv"].includes(ext)) {
+    return { ext: "XLS", bg: "#DCFCE7", color: "#16A34A" };
+  }
+  if (["png", "jpg", "jpeg", "webp"].includes(ext)) {
+    return { ext: "IMG", bg: "#FEF3C7", color: "#D97706" };
+  }
+  return { ext: ext.toUpperCase().slice(0, 4) || "DOC", bg: "#F1F5F9", color: "#475569" };
+};
+
+const mapServerMessageToClient = (msg, currentId) => {
+  const isUser = String(msg.senderId) === String(currentId);
+  const d = msg.createdAt ? new Date(msg.createdAt) : new Date();
+  let hours = d.getHours();
+  const minutes = d.getMinutes();
+  const ampm = hours >= 12 ? "pm" : "am";
+  hours = hours % 12 || 12;
+  const minStr = minutes < 10 ? "0" + minutes : minutes;
+  const timeStr = `Today, ${hours}:${minStr} ${ampm}`;
+
+  const resolvedFilename = msg.media?.filename || msg.text || (msg.messageType === "document" ? "Document.pdf" : "");
+
+  return {
+    id: String(msg._id || msg.clientTempId || Math.random()),
+    serverMessageId: msg._id,
+    clientTempId: msg.clientTempId,
+    sender: isUser ? "user" : "other",
+    text: msg.text || resolvedFilename || "",
+    time: timeStr,
+    type: msg.messageType || "text",
+    status: msg.status || "sent",
+    meta: msg.media
+      ? {
+          uri: msg.media.url,
+          filename: resolvedFilename,
+          size: msg.media.size,
+          duration: msg.media.duration,
+          mimeType: msg.media.mimeType,
+        }
+      : null,
+    callInfo: msg.callInfo || null,
+  };
+};
 
 export default function ActiveChatScreen() {
   const router = useRouter();
@@ -32,22 +101,18 @@ export default function ActiveChatScreen() {
   const tutorName = params.name || "Parent";
   const scrollViewRef = useRef();
 
-  const [messages, setMessages] = useState([
-    {
-      id: "1",
-      sender: "parent",
-      text: "Hi, how are the kids doing today?",
-      time: "Saturday, 08:00 am",
-      type: "text",
-    },
-    {
-      id: "2",
-      sender: "user",
-      text: "They're great! We just finished playing in the park.",
-      time: "Saturday, 08:05 am",
-      type: "text",
-    },
-  ]);
+  const [activeConvId, setActiveConvId] = useState(params.conversationId || null);
+  const [activeReceiverId, setActiveReceiverId] = useState(
+    params.receiverId || params.parentId || params.userId || null
+  );
+  const [activeReceiverRole, setActiveReceiverRole] = useState(params.receiverRole || "parent");
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [isRecipientOnline, setIsRecipientOnline] = useState(false);
+  const [otherIsTyping, setOtherIsTyping] = useState(false);
+  const [loadingChat, setLoadingChat] = useState(true);
+  const typingTimerRef = useRef(null);
+
+  const [messages, setMessages] = useState([]);
 
   const [textInput, setTextInput] = useState("");
   const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
@@ -62,6 +127,11 @@ export default function ActiveChatScreen() {
 
   const recordingTimerRef = useRef(null);
   const playbackTimerRef = useRef(null);
+  const activeConvIdRef = useRef(activeConvId);
+  activeConvIdRef.current = activeConvId;
+  const currentUserIdRef = useRef(currentUserId);
+  currentUserIdRef.current = currentUserId;
+  const isInitializingRef = useRef(false);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -75,6 +145,164 @@ export default function ActiveChatScreen() {
     scrollToBottom();
   }, [messages]);
 
+  const incomingReceiverId = params.receiverId || params.parentId || params.userId || null;
+  const incomingConvId = params.conversationId || null;
+
+  useEffect(() => {
+    if (incomingReceiverId && incomingReceiverId !== activeReceiverId) {
+      setActiveReceiverId(incomingReceiverId);
+      isInitializingRef.current = false;
+    }
+    if (incomingConvId && incomingConvId !== activeConvId) {
+      setActiveConvId(incomingConvId);
+      activeConvIdRef.current = incomingConvId;
+      isInitializingRef.current = false;
+    }
+  }, [incomingReceiverId, incomingConvId]);
+
+  // Connect Socket & Initialize Conversation on Mount (guarded against concurrency)
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initChat() {
+      if (isInitializingRef.current) return;
+      isInitializingRef.current = true;
+
+      try {
+        const session = await getSession();
+        const myId = session?.user?._id || session?.user?.id;
+        if (myId && isMounted) {
+          setCurrentUserId(String(myId));
+          currentUserIdRef.current = String(myId);
+        }
+
+        await socketService.connect();
+
+        let convId = activeConvIdRef.current;
+        const recId = activeReceiverId;
+
+        if (!convId && recId) {
+          const convRes = await chatService.getOrCreateConversation({
+            receiverId: recId,
+            receiverRole: activeReceiverRole,
+            bookingId: params.bookingId || null,
+          });
+          convId = convRes?._id;
+          if (convId && isMounted) {
+            setActiveConvId(convId);
+            activeConvIdRef.current = convId;
+          }
+        }
+
+        if (convId) {
+          socketService.emit("join_conversation", { conversationId: convId });
+
+          const history = await chatService.getMessages(convId, { limit: 50 });
+          if (isMounted) {
+            const mapped = history.messages.map((m) => mapServerMessageToClient(m, myId));
+            setMessages(mapped);
+            setLoadingChat(false);
+          }
+
+          socketService.emit("mark_as_read", { conversationId: convId });
+        } else {
+          if (isMounted) setLoadingChat(false);
+        }
+      } catch (err) {
+        console.warn("[Nanny ActiveChatScreen] initChat error:", err);
+        if (isMounted) setLoadingChat(false);
+      } finally {
+        isInitializingRef.current = false;
+      }
+    }
+
+    initChat();
+  }, [activeReceiverId]);
+
+  // Active socket listeners for real-time messages & presence
+  useEffect(() => {
+    if (!activeConvId) return;
+
+    socketService.emit("join_conversation", { conversationId: activeConvId });
+
+    const handleNewMessage = (newMsg) => {
+      if (String(newMsg.conversationId) === String(activeConvIdRef.current)) {
+        setMessages((prev) => {
+          const existingIdx = prev.findIndex(
+            (m) =>
+              (newMsg.clientTempId && m.clientTempId === newMsg.clientTempId) ||
+              (newMsg._id && String(m.serverMessageId) === String(newMsg._id))
+          );
+          const mapped = mapServerMessageToClient(newMsg, currentUserIdRef.current);
+          if (existingIdx !== -1) {
+            const updated = [...prev];
+            updated[existingIdx] = mapped;
+            return updated;
+          }
+          return [...prev, mapped];
+        });
+
+        if (String(newMsg.senderId) !== String(currentUserIdRef.current)) {
+          socketService.emit("mark_as_read", {
+            conversationId: activeConvIdRef.current,
+            messageIds: [newMsg._id],
+          });
+        }
+      }
+    };
+
+    const handleMessageAck = (ack) => {
+      if (ack?.clientTempId) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.clientTempId === ack.clientTempId
+              ? { ...m, serverMessageId: ack.messageId, status: "sent" }
+              : m
+          )
+        );
+      }
+    };
+
+    const handleMessagesRead = (readData) => {
+      if (String(readData.conversationId) === String(activeConvIdRef.current)) {
+        setMessages((prev) =>
+          prev.map((m) => (m.sender === "user" ? { ...m, status: "read" } : m))
+        );
+      }
+    };
+
+    const handleUserTyping = (data) => {
+      if (String(data.conversationId) === String(activeConvIdRef.current)) {
+        if (String(data.userId) !== String(currentUserIdRef.current)) {
+          setOtherIsTyping(Boolean(data.isTyping));
+        }
+      }
+    };
+
+    const handleUserPresence = (data) => {
+      if (activeReceiverId && String(data.userId) === String(activeReceiverId)) {
+        setIsRecipientOnline(Boolean(data.isOnline));
+      }
+    };
+
+    socketService.on("new_message", handleNewMessage);
+    socketService.on("message_ack", handleMessageAck);
+    socketService.on("messages_read", handleMessagesRead);
+    socketService.on("user_typing", handleUserTyping);
+    socketService.on("user_presence", handleUserPresence);
+
+    return () => {
+      if (activeConvId) {
+        socketService.emit("leave_conversation", { conversationId: activeConvId });
+      }
+      socketService.off("new_message", handleNewMessage);
+      socketService.off("message_ack", handleMessageAck);
+      socketService.off("messages_read", handleMessagesRead);
+      socketService.off("user_typing", handleUserTyping);
+      socketService.off("user_presence", handleUserPresence);
+    };
+  }, [activeConvId, activeReceiverId]);
+
   const mediaRef = useChatCallMedia(() => {
     clearInterval(recordingTimerRef.current);
     clearInterval(playbackTimerRef.current);
@@ -85,32 +313,101 @@ export default function ActiveChatScreen() {
     setPlayingAudioId(null);
   });
 
-  const handleSend = (text, type = "text", meta = {}) => {
+  const handleSend = async (text, type = "text", meta = {}) => {
     if (!text && type === "text") return;
 
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     const now = new Date();
     let hours = now.getHours();
     const minutes = now.getMinutes();
     const ampm = hours >= 12 ? "pm" : "am";
-    hours = hours % 12;
-    hours = hours ? hours : 12;
+    hours = hours % 12 || 12;
     const minStr = minutes < 10 ? "0" + minutes : minutes;
     const timeStr = `Today, ${hours}:${minStr} ${ampm}`;
 
-    const newMessage = {
-      id: Date.now().toString(),
+    const optimisticMessage = {
+      id: tempId,
+      clientTempId: tempId,
       sender: "user",
       text: text,
       time: timeStr,
       type: type,
+      status: "sending",
       meta: meta,
     };
 
-    setMessages((prev) => [...prev, newMessage]);
+    setMessages((prev) => [...prev, optimisticMessage]);
     setTextInput("");
     setShowEmojiBar(false);
     setShowAttachmentSheet(false);
+
+    try {
+      let mediaPayload = null;
+      if (type !== "text" && meta?.uri) {
+        const uploadRes = await chatService.uploadAttachment(
+          meta.uri,
+          meta.filename || text,
+          meta.mimeType
+        );
+        if (uploadRes?.url) {
+          mediaPayload = {
+            url: uploadRes.url,
+            filename: uploadRes.filename || text,
+            size: meta.size || "",
+            duration: meta.duration || "",
+            mimeType: uploadRes.mimeType || "",
+          };
+        }
+      }
+
+      socketService.emit("send_message", {
+        conversationId: activeConvId,
+        receiverId: activeReceiverId,
+        receiverRole: activeReceiverRole,
+        text: type === "text" ? text : (meta?.filename || text || "Attachment"),
+        messageType: type,
+        media: mediaPayload,
+        clientTempId: tempId,
+      });
+
+      if (activeConvId) {
+        socketService.emit("typing_stop", { conversationId: activeConvId });
+      }
+    } catch (err) {
+      console.error("[handleSend Nanny] Error:", err);
+    }
   };
+
+  const handleOpenDocument = async (url, filename = "document") => {
+    if (!url) {
+      Alert.alert("File Not Found", "Attachment link is not available.");
+      return;
+    }
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        await Linking.openURL(url);
+      }
+    } catch (err) {
+      console.warn("[handleOpenDocument] Linking error:", err);
+      Alert.alert("Unable to open", "Could not open document in mobile viewer/browser.");
+    }
+  };
+
+  const handleTypingChange = (text) => {
+    setTextInput(text);
+    if (!activeConvId) return;
+
+    socketService.emit("typing_start", { conversationId: activeConvId });
+
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
+      socketService.emit("typing_stop", { conversationId: activeConvId });
+    }, 2000);
+  };
+
 
   const formatRecordingTime = (sec) => {
     const mins = Math.floor(sec / 60);
@@ -163,13 +460,19 @@ export default function ActiveChatScreen() {
       mediaRef.current.pendingRecordingStop = stopping;
       await stopping;
       mediaRef.current.pendingRecordingStop = null;
-      const uri = recording.getURI();
-      mediaRef.current.recording = null;
-      setRecording(null);
-
       const durationStr = formatRecordingTime(recordingSeconds);
-      handleSend("Voice Note", "audio", { uri, duration: durationStr });
+      const ext = uri ? uri.split('.').pop().toLowerCase().split('?')[0] : 'm4a';
+      const cleanExt = ['m4a', 'aac', 'mp3', 'wav', 'caf'].includes(ext) ? ext : 'm4a';
+      const filename = `voice-note-${Date.now()}.${cleanExt}`;
+
+      handleSend("Voice Note", "audio", {
+        uri,
+        filename,
+        duration: durationStr,
+        mimeType: `audio/${cleanExt === 'mp3' ? 'mpeg' : cleanExt}`,
+      });
       setRecordingSeconds(0);
+
     } catch (err) {
       console.error("Failed to stop recording", err);
     }
@@ -276,9 +579,18 @@ export default function ActiveChatScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        const filename =
-          asset.fileName ||
-          (mediaType === "image" ? "photo_upload.jpg" : "video_upload.mp4");
+        const rawUri = asset.uri || '';
+        const uriExt = rawUri.includes('.') ? rawUri.split('.').pop().toLowerCase().split('?')[0] : '';
+        const defaultExt = mediaType === 'image' ? 'jpg' : 'mp4';
+        const ext = uriExt && uriExt.length <= 4 ? uriExt : defaultExt;
+
+        let filename = asset.fileName;
+        if (!filename) {
+          filename = `${mediaType}_upload_${Date.now()}.${ext}`;
+        } else if (!filename.includes('.')) {
+          filename = `${filename}.${ext}`;
+        }
+
         const durationSecs = asset.duration ? asset.duration / 1000 : 15;
         const mins = Math.floor(durationSecs / 60);
         const secs = Math.floor(durationSecs % 60);
@@ -286,6 +598,8 @@ export default function ActiveChatScreen() {
 
         handleSend(filename, mediaType, {
           uri: asset.uri,
+          filename: filename,
+          mimeType: asset.mimeType || (mediaType === 'image' ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'video/mp4'),
           size: asset.fileSize
             ? `${(asset.fileSize / (1024 * 1024)).toFixed(1)} MB`
             : "1.2 MB",
@@ -306,8 +620,17 @@ export default function ActiveChatScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        handleSend(asset.name, "document", {
+        const rawUri = asset.uri || '';
+        const uriExt = rawUri.includes('.') ? rawUri.split('.').pop().toLowerCase().split('?')[0] : 'pdf';
+        let filename = asset.name || `document_${Date.now()}.${uriExt}`;
+        if (!filename.includes('.')) {
+          filename = `${filename}.${uriExt}`;
+        }
+
+        handleSend(filename, "document", {
           uri: asset.uri,
+          filename: filename,
+          mimeType: asset.mimeType || 'application/pdf',
           size: asset.size
             ? `${(asset.size / (1024 * 1024)).toFixed(1)} MB`
             : "1.0 MB",
@@ -344,7 +667,7 @@ export default function ActiveChatScreen() {
 
   const handleStartCall = (callType) => initiateOutgoingCall({
     router,
-    receiverId: params.receiverId || params.parentId || params.nannyId || params.id || params.userId,
+    receiverId: activeReceiverId || params.receiverId || params.parentId || params.nannyId || params.id || params.userId,
     receiverName: tutorName,
     receiverPhoto: params.photo || params.remotePhoto || '',
     bookingId: params.bookingId || null,
@@ -384,18 +707,18 @@ export default function ActiveChatScreen() {
           >
             <View style={styles.headerAvatarContainer}>
               <Image
-                source={require("../../../assets/icons/nanny-image.svg")}
+                source={params.photo ? { uri: params.photo } : require("../../../assets/icons/nanny-image.svg")}
                 style={styles.headerAvatar}
                 contentFit="cover"
               />
-              <View style={styles.offlineDot} />
+              <View style={[styles.offlineDot, { backgroundColor: isRecipientOnline ? "#22C55E" : "#94A3B8" }]} />
             </View>
             <View style={styles.headerTextContainer}>
               <View style={styles.nameRow}>
                 <Text style={styles.headerName}>{tutorName}</Text>
                 <View style={styles.subjectBadge}>
                   <Text style={styles.subjectBadgeText}>
-                    {params.subject || "Nanny"}
+                    {params.subject || (activeReceiverRole === "parent" ? "Parent" : "Nanny")}
                   </Text>
                 </View>
               </View>
@@ -445,30 +768,58 @@ export default function ActiveChatScreen() {
                       isUser ? styles.userBubble : styles.parentBubble,
                     ]}
                   >
-                    {msg.type === "document" && (
-                      <View style={styles.attachmentBadgeRow}>
-                        <View style={styles.pdfIconCircle}>
-                          <Text style={styles.pdfTextIcon}>PDF</Text>
-                        </View>
-                        <View style={styles.attachmentDetails}>
-                          <Text
-                            style={[
-                              styles.attachmentNameText,
-                              isUser ? styles.userText : styles.parentText,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {msg.text}
-                          </Text>
-                          <Text style={styles.attachmentSizeText}>
-                            {msg.meta?.size || "1.2 MB"}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
+                    {msg.type === "document" && (() => {
+                      const docFilename = msg.meta?.filename || msg.text || "Document.pdf";
+                      const docUri = msg.meta?.uri || "";
+                      const docInfo = getDocumentInfo(docFilename, docUri);
+                      const sizeText = formatFileSize(msg.meta?.size);
+
+                      return (
+                        <TouchableOpacity
+                          activeOpacity={0.75}
+                          style={styles.attachmentCardBtn}
+                          onPress={() => handleOpenDocument(docUri, docFilename)}
+                        >
+                          <View style={[styles.pdfIconCircle, { backgroundColor: docInfo.bg }]}>
+                            <Text style={[styles.pdfTextIcon, { color: docInfo.color }]}>
+                              {docInfo.ext}
+                            </Text>
+                          </View>
+                          <View style={styles.attachmentDetails}>
+                            <Text
+                              style={[
+                                styles.attachmentNameText,
+                                isUser ? styles.userText : styles.parentText,
+                              ]}
+                              numberOfLines={1}
+                              ellipsizeMode="middle"
+                            >
+                              {docFilename}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.attachmentSizeText,
+                                isUser && { color: "rgba(255, 255, 255, 0.8)" },
+                              ]}
+                            >
+                              {sizeText ? `${sizeText} • ` : ""}Tap to open / download
+                            </Text>
+                          </View>
+                          <View style={[styles.downloadIconBadge, isUser && styles.userDownloadBadge]}>
+                            <Text style={[styles.downloadArrowText, isUser && { color: "#FFFFFF" }]}>
+                              ⬇
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })()}
 
                     {msg.type === "image" && (
-                      <View style={styles.imageAttachmentBox}>
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        style={styles.imageAttachmentBox}
+                        onPress={() => handleOpenDocument(msg.meta?.uri, msg.meta?.filename || "photo.jpg")}
+                      >
                         <Image
                           source={{ uri: msg.meta?.uri }}
                           style={styles.attachmentImg}
@@ -479,10 +830,11 @@ export default function ActiveChatScreen() {
                             styles.imageLabelText,
                             isUser ? styles.userText : styles.parentText,
                           ]}
+                          numberOfLines={1}
                         >
-                          {msg.text}
+                          {msg.meta?.filename || msg.text || "Photo"}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     )}
 
                     {msg.type === "video" && (
@@ -564,6 +916,119 @@ export default function ActiveChatScreen() {
                       </View>
                     )}
 
+                    {msg.type === "call" && (() => {
+                      const isVideo = msg.callInfo?.callType === "video" || msg.text?.toLowerCase().includes("video");
+                      const callStatus = msg.callInfo?.status || (msg.text?.toLowerCase().includes("missed") ? "missed" : "completed");
+                      const durationSec = Number(msg.callInfo?.duration) || 0;
+                      const isMissed = callStatus === "missed" || (!isUser && durationSec === 0 && callStatus !== "completed");
+                      const isDeclined = callStatus === "declined";
+                      const isCancelled = callStatus === "cancelled";
+
+                      let callTitle = isVideo ? "Video Call" : "Voice Call";
+                      if (isMissed) {
+                        callTitle = isVideo ? "Missed Video Call" : "Missed Voice Call";
+                      } else if (isDeclined) {
+                        callTitle = isVideo ? "Declined Video Call" : "Declined Voice Call";
+                      }
+
+                      const formatCallDur = (sec) => {
+                        if (!sec || sec <= 0) return null;
+                        const mins = Math.floor(sec / 60);
+                        const s = sec % 60;
+                        return mins > 0 ? `${mins}m ${s}s` : `${s}s`;
+                      };
+
+                      const durStr = formatCallDur(durationSec);
+
+                      return (
+                        <TouchableOpacity
+                          activeOpacity={0.8}
+                          style={styles.callCardBtn}
+                          onPress={() => (isVideo ? startVideoCall() : startAudioCall())}
+                        >
+                          <View
+                            style={[
+                              styles.callIconCircle,
+                              isMissed
+                                ? styles.callIconMissed
+                                : isUser
+                                ? styles.callIconUser
+                                : styles.callIconOther,
+                            ]}
+                          >
+                            <Ionicons
+                              name={isVideo ? "videocam" : "call"}
+                              size={20}
+                              color={isMissed ? "#EF4444" : isUser ? "#FFFFFF" : colors.primary}
+                            />
+                          </View>
+
+                          <View style={styles.callDetailsCol}>
+                            <Text
+                              style={[
+                                styles.callTitleText,
+                                isMissed
+                                  ? { color: "#EF4444" }
+                                  : isUser
+                                  ? styles.userText
+                                  : styles.parentText,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {callTitle}
+                            </Text>
+                            <View style={styles.callSubRow}>
+                              <Ionicons
+                                name={
+                                  isMissed
+                                    ? "arrow-down"
+                                    : isUser
+                                    ? "arrow-up"
+                                    : "arrow-down"
+                                }
+                                size={12}
+                                color={
+                                  isMissed
+                                    ? "#EF4444"
+                                    : isUser
+                                    ? "rgba(255, 255, 255, 0.85)"
+                                    : "#64748B"
+                                }
+                                style={{ marginRight: 4 }}
+                              />
+                              <Text
+                                style={[
+                                  styles.callSubText,
+                                  isMissed
+                                    ? { color: "#EF4444" }
+                                    : isUser
+                                    ? { color: "rgba(255, 255, 255, 0.85)" }
+                                    : { color: "#64748B" },
+                                ]}
+                              >
+                                {durStr || (isMissed ? "Missed" : isDeclined ? "Declined" : isCancelled ? "Cancelled" : "Call ended")}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <TouchableOpacity
+                            style={[
+                              styles.callActionBadge,
+                              isUser && styles.userCallActionBadge,
+                            ]}
+                            onPress={() => (isVideo ? startVideoCall() : startAudioCall())}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Ionicons
+                              name={isVideo ? "videocam-outline" : "call-outline"}
+                              size={16}
+                              color={isUser ? "#FFFFFF" : colors.primary}
+                            />
+                          </TouchableOpacity>
+                        </TouchableOpacity>
+                      );
+                    })()}
+
                     {msg.type === "text" && (
                       <Text
                         style={[
@@ -586,6 +1051,14 @@ export default function ActiveChatScreen() {
             onClose={() => setShowEmojiBar(false)}
             onEmojiSelected={selectEmoji}
           />
+
+          {otherIsTyping && (
+            <View style={{ paddingHorizontal: 24, paddingVertical: 4 }}>
+              <Text style={{ fontSize: 13, color: "#71717A", fontStyle: "italic" }}>
+                {tutorName} is typing...
+              </Text>
+            </View>
+          )}
 
           <View style={styles.inputDock}>
             <View style={styles.inputBarRow}>
@@ -638,7 +1111,7 @@ export default function ActiveChatScreen() {
                       placeholder="Write your message..."
                       placeholderTextColor="#64748B"
                       value={textInput}
-                      onChangeText={setTextInput}
+                      onChangeText={handleTypingChange}
                       onSubmitEditing={() => handleSend(textInput, "text")}
                     />
                   </View>
@@ -1135,15 +1608,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#475569",
   },
+  attachmentCardBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minWidth: 200,
+    maxWidth: 270,
+    paddingVertical: 4,
+  },
   attachmentBadgeRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
   pdfIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: "#FEE2E2",
     justifyContent: "center",
     alignItems: "center",
@@ -1156,16 +1637,35 @@ const styles = StyleSheet.create({
   },
   attachmentDetails: {
     flex: 1,
+    paddingRight: 4,
   },
   attachmentNameText: {
     fontFamily: fonts.rubik,
-    fontSize: 12,
-    fontWeight: "500",
+    fontSize: 13,
+    fontWeight: "600",
   },
   attachmentSizeText: {
     fontFamily: fonts.rubik,
-    fontSize: 10,
+    fontSize: 11,
     color: "#94A3B8",
+    marginTop: 2,
+  },
+  downloadIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 4,
+  },
+  userDownloadBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  },
+  downloadArrowText: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "700",
   },
   imageAttachmentBox: {
     gap: 8,
@@ -1254,5 +1754,59 @@ const styles = StyleSheet.create({
   },
   actionBtnActive: {
     backgroundColor: "#E2E8F0",
+  },
+  callCardBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minWidth: 210,
+    maxWidth: 280,
+    paddingVertical: 4,
+  },
+  callIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  callIconMissed: {
+    backgroundColor: "#FEE2E2",
+  },
+  callIconUser: {
+    backgroundColor: "rgba(255, 255, 255, 0.22)",
+  },
+  callIconOther: {
+    backgroundColor: "#E6F4F1",
+  },
+  callDetailsCol: {
+    flex: 1,
+    paddingRight: 4,
+  },
+  callTitleText: {
+    fontFamily: fonts?.rubikBold || "System",
+    fontSize: 14.5,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  callSubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  callSubText: {
+    fontFamily: fonts?.rubik || "System",
+    fontSize: 12,
+  },
+  callActionBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 4,
+  },
+  userCallActionBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
   },
 });

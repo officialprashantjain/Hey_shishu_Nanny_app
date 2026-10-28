@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { CustomImage as Image } from "../../../src/components/common/CustomImage";
 import { useRouter, useFocusEffect } from "expo-router";
 import { colors } from "../../../constants/color";
@@ -45,6 +45,7 @@ const FALLBACK_SECTIONS = [
 
 export default function TermsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [title, setTitle] = useState("Terms & Conditions");
   const [sections, setSections] = useState(FALLBACK_SECTIONS);
   const [loading, setLoading] = useState(true);
@@ -128,7 +129,7 @@ export default function TermsScreen() {
         </ScrollView>
       )}
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
         <TouchableOpacity style={styles.saveBtn} onPress={() => router.back()}>
           <Text style={styles.saveBtnText}>Save Changes</Text>
         </TouchableOpacity>
@@ -213,7 +214,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderRadius: 30,
     alignItems: "center",
-    marginBottom: 60,
+    marginBottom: 0,
   },
   saveBtnText: {
     fontFamily: fonts.rubikBold,

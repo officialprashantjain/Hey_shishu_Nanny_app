@@ -71,6 +71,10 @@ class CallSessionManager {
       mode: this.currentCall.mode,
       remoteName: this.currentCall.remoteName,
       remotePhoto: this.currentCall.remotePhoto || '',
+      remoteUserId: this.currentCall.remoteUserId || '',
+      bookingId: this.currentCall.bookingId || '',
+      conversationId: this.currentCall.conversationId || '',
+      receiverRole: this.currentCall.receiverRole || '',
       startedAt: this.currentCall.connectedAt ? new Date(this.currentCall.connectedAt).toISOString() : '',
     };
   }
@@ -119,13 +123,17 @@ class CallSessionManager {
       mode,
       remoteName: params.remoteName || (mode === 'outgoing' ? 'Parent' : 'Nanny'),
       remotePhoto: params.remotePhoto || '',
+      remoteUserId: params.remoteUserId || params.receiverId || params.callerId || params.parentId || null,
+      bookingId: params.bookingId || null,
+      conversationId: params.conversationId || null,
+      receiverRole: params.receiverRole || null,
       isJoined: false,
       remoteUid: null,
       callConnected: Boolean(restoredStartedAt),
       connectedAt: restoredStartedAt,
       callDuration: restoredStartedAt ? Math.max(0, Math.floor((Date.now() - restoredStartedAt) / 1000)) : 0,
       isMuted: false,
-      isCameraOff: AppState.currentState !== 'active',
+      isCameraOff: false,
       isSpeakerOn: callType === 'video',
       callStatusMessage: mode === 'outgoing' ? 'Ringing…' : 'Connecting…',
       isMinimized: false,
@@ -172,6 +180,11 @@ class CallSessionManager {
         onJoinChannelSuccess: () => {
           if (this.currentCall && !this.isEnding) {
             this.currentCall.isJoined = true;
+            if (this.currentCall.callType === 'video' && !this.currentCall.isCameraOff) {
+              this.agoraEngine?.enableLocalVideo(true);
+              this.agoraEngine?.startPreview?.();
+              this.agoraEngine?.updateChannelMediaOptions?.({ publishCameraTrack: true });
+            }
             this.notify();
           }
         },
@@ -213,9 +226,10 @@ class CallSessionManager {
       engine.enableAudio();
       if (call.callType === 'video') {
         engine.enableVideo();
-        const background = AppState.currentState !== 'active';
-        engine.enableLocalVideo(!background);
-        if (!background) engine.startPreview?.();
+        engine.enableLocalVideo(!this.currentCall.isCameraOff);
+        if (!this.currentCall.isCameraOff) {
+          engine.startPreview?.();
+        }
       }
       engine.setDefaultAudioRouteToSpeakerphone?.(call.callType === 'video');
 
@@ -227,7 +241,7 @@ class CallSessionManager {
         channelProfile: ChannelProfileType.ChannelProfileCommunication,
         clientRoleType: ClientRoleType.ClientRoleBroadcaster,
         publishMicrophoneTrack: true,
-        publishCameraTrack: call.callType === 'video' && AppState.currentState === 'active',
+        publishCameraTrack: call.callType === 'video' && !this.currentCall.isCameraOff,
         autoSubscribeAudio: true,
         autoSubscribeVideo: call.callType === 'video',
       });
@@ -305,8 +319,11 @@ class CallSessionManager {
         checkStatus();
       }
       if (this.currentCall?.callType === 'video' && this.agoraEngine) {
-        const enabled = state === 'active' && !this.currentCall.isCameraOff && this.currentCall.isScreenAttached;
+        const enabled = state === 'active' && !this.currentCall.isCameraOff;
         this.agoraEngine.enableLocalVideo(enabled);
+        if (enabled) {
+          this.agoraEngine.startPreview?.();
+        }
         this.agoraEngine.updateChannelMediaOptions?.({ publishCameraTrack: enabled });
       }
     });
@@ -439,6 +456,9 @@ class CallSessionManager {
     }
     this.currentCall.isCameraOff = next;
     this.agoraEngine?.enableLocalVideo(!next);
+    if (!next) {
+      this.agoraEngine?.startPreview?.();
+    }
     this.agoraEngine?.updateChannelMediaOptions?.({ publishCameraTrack: !next });
     this.notify();
   }
@@ -461,6 +481,11 @@ class CallSessionManager {
       callId: call.callId,
       duration: call.callDuration || 0,
       remoteName: call.remoteName,
+      remotePhoto: call.remotePhoto,
+      remoteUserId: call.remoteUserId,
+      bookingId: call.bookingId,
+      conversationId: call.conversationId,
+      receiverRole: call.receiverRole,
     };
 
     const callId = call.callId;

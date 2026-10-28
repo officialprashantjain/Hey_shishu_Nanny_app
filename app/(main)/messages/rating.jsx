@@ -26,19 +26,50 @@ const screenOptions = {
 
 export default function RatingScreen() {
   const router = useRouter();
-  const { remoteName = 'your contact', duration = '0' } = useLocalSearchParams();
+  const searchParams = useLocalSearchParams();
+  const {
+    remoteName = 'Parent',
+    duration = '0',
+    remoteUserId,
+    receiverId,
+    parentId,
+    bookingId,
+    remotePhoto,
+    photo,
+    receiverRole = 'parent',
+  } = searchParams;
+
+  const targetId = remoteUserId || receiverId || parentId || '';
+  const targetName = remoteName && remoteName !== 'your contact' ? remoteName : 'Parent';
+  const targetPhoto = remotePhoto || photo || '';
   const seconds = Math.max(0, Number(duration) || 0);
   const callTime = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
   const [rating, setRating] = useState(5);
   const [commentText, setCommentText] = useState("");
 
+  const navigateToChat = () => {
+    router.replace({
+      pathname: '/(main)/messages/chat',
+      params: {
+        receiverId: targetId,
+        parentId: targetId,
+        userId: targetId,
+        name: targetName,
+        photo: targetPhoto,
+        bookingId: bookingId || '',
+        receiverRole,
+        subject: 'Babysitting',
+      },
+    });
+  };
+
   const handleSubmit = () => {
-    router.replace("/(main)/messages/chat");
+    navigateToChat();
   };
 
   const handleCancel = () => {
-    router.replace("/(main)/messages/chat");
+    navigateToChat();
   };
 
   return (
