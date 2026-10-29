@@ -9,6 +9,7 @@ import { fetchPendingBookings, fetchCompletedBookings, fetchCancelledBookings, s
 import { useAlert } from '../../../../src/contexts/AlertContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { resolveParentName, resolveParentPhone } from '../../../../src/utils/parentHelper';
+import { resolveChildName, resolveChildAge, resolveChildPhoto } from '../../../../src/utils/childHelper';
 
 export default function RequestsScreen() {
   const router = useRouter();
@@ -91,11 +92,16 @@ export default function RequestsScreen() {
     // Calculate duration
     let diffHours = booking.totalSlotHours || (Math.abs(end - start) / 36e5);
     diffHours = diffHours % 1 === 0 ? diffHours : Number(diffHours).toFixed(1);
+
+    const childName = resolveChildName(booking.childIds, 'Child');
+    const childAge = resolveChildAge(booking.childIds) || '';
+    const childPhoto = resolveChildPhoto(booking.childIds);
+    const childPhotoUrl = booking.childIds?.[0]?.photo || null;
     
     return {
       id: booking._id,
-      childName: booking.childIds?.[0]?.firstName || 'Aarav Mehta',
-      age: booking.childIds?.[0]?.age ? `${booking.childIds[0].age} Years Old` : '2.5 Years Old',
+      childName,
+      age: childAge,
       type: booking.bookingType || 'hourly',
       date: finalDateStr,
       time: `${startTimeStr} – ${endTimeStr}`,
@@ -104,7 +110,8 @@ export default function RequestsScreen() {
       distance: '1.8 km', 
       totalAmount: booking.totalAmount != null ? `₹${booking.totalAmount}` : null,
       notes: booking.parentNotes || '',
-      photo: require('../../../../assets/icons/nanny-image.svg'),
+      photo: childPhoto,
+      childPhotoUrl,
       
       parentId: booking.parentId?._id || booking.parentId,
       fullAddress: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`.trim(),
@@ -127,7 +134,7 @@ export default function RequestsScreen() {
         distance: mappedBooking.distance,
         childName: mappedBooking.childName,
         childAge: mappedBooking.age,
-        childPhoto: mappedBooking.photo,
+        childPhoto: mappedBooking.childPhotoUrl || mappedBooking.photo,
         childNotes: mappedBooking.notes,
         date: mappedBooking.date,
         time: mappedBooking.time,

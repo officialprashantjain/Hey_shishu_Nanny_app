@@ -12,6 +12,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAlert } from '../../../../src/contexts/AlertContext';
 import { promptAndStartCall } from '../../../../src/utils/callLauncher';
 import { resolveParentName, resolveParentPhone } from '../../../../src/utils/parentHelper';
+import { resolveChildName, resolveChildAge, resolveChildPhoto } from '../../../../src/utils/childHelper';
 
 export default function UpcomingBookingScreen() {
   const router = useRouter();
@@ -85,17 +86,23 @@ export default function UpcomingBookingScreen() {
     // Format AM/PM time
     const startTimeStr = start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' });
     const endTimeStr = end.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' });
+
+    const childName = resolveChildName(booking.childIds, 'Child');
+    const childAge = resolveChildAge(booking.childIds) || '';
+    const childPhoto = resolveChildPhoto(booking.childIds);
+    const childPhotoUrl = booking.childIds?.[0]?.photo || null;
     
     return {
       id: booking._id,
-      childName: booking.childIds?.[0]?.firstName || 'Aarav Mehta',
-      childAge: booking.childIds?.[0]?.age ? `${booking.childIds[0].age} Years Old` : '2.5 Years Old',
+      childName,
+      childAge,
       date: dateStr,
       time: `${startTimeStr} – ${endTimeStr}`,
       address: `${booking.address?.area || 'Sector 45'}, ${booking.address?.city || 'Noida'}`,
       distance: '1.8 km', 
       childNotes: booking.parentNotes || '',
-      childPhoto: require('../../../../assets/icons/nanny-image.svg'), // Using fallback image that exists
+      childPhoto,
+      childPhotoUrl,
       parentPhoto: booking.parentId?.profileImage?.url || booking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
       
       parentId: booking.parentId?._id || booking.parentId,
@@ -140,7 +147,7 @@ export default function UpcomingBookingScreen() {
         distance: mappedBooking.distance,
         childName: mappedBooking.childName,
         childAge: mappedBooking.childAge,
-        childPhoto: mappedBooking.childPhoto,
+        childPhoto: mappedBooking.childPhotoUrl || mappedBooking.childPhoto,
         childNotes: mappedBooking.childNotes,
         date: mappedBooking.date,
         time: mappedBooking.time,

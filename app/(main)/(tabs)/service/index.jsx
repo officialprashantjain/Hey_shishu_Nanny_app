@@ -19,6 +19,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo } from 'react';
 import { promptAndStartCall } from '../../../../src/utils/callLauncher';
 import { resolveParentName, resolveParentPhone } from '../../../../src/utils/parentHelper';
+import { resolveChildName, resolveChildAge, resolveChildPhoto } from '../../../../src/utils/childHelper';
 
 // ── Dummy Active Context ───────────────────────────────────────────────────
 export default function ServiceScreen() {
@@ -51,9 +52,10 @@ export default function ServiceScreen() {
          shiftId: activeShift._id,
          parentId: parentBooking.parentId?._id || parentBooking.parentId,
          isFinalShift: activeShift.shiftNumber === activeShift.totalShifts,
-         childName: parentBooking.childIds?.[0]?.firstName || 'Aarav Mehta',
-         childAge: parentBooking.childIds?.[0]?.age ? `${parentBooking.childIds[0].age} Years Old` : '2.5 Years Old',
-         childPhoto: require('../../../../assets/icons/nanny-image.svg'),
+         childName: resolveChildName(parentBooking.childIds, 'Child'),
+         childAge: resolveChildAge(parentBooking.childIds) || '',
+         childPhoto: resolveChildPhoto(parentBooking.childIds),
+         childPhotoUrl: parentBooking.childIds?.[0]?.photo || null,
          parentName: resolveParentName(parentBooking.parentId, parentBooking.contactNumber),
          parentPhone: resolveParentPhone(parentBooking.parentId, parentBooking.contactNumber),
          parentPhoto: parentBooking.parentId?.profileImage?.url || parentBooking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
@@ -79,9 +81,10 @@ export default function ServiceScreen() {
     return {
       id: booking._id,
       parentId: booking.parentId?._id || booking.parentId,
-      childName: booking.childIds?.[0]?.firstName || 'Aarav Mehta',
-      childAge: booking.childIds?.[0]?.age ? `${booking.childIds[0].age} Years Old` : '2.5 Years Old',
-      childPhoto: require('../../../../assets/icons/nanny-image.svg'),
+      childName: resolveChildName(booking.childIds, 'Child'),
+      childAge: resolveChildAge(booking.childIds) || '',
+      childPhoto: resolveChildPhoto(booking.childIds),
+      childPhotoUrl: booking.childIds?.[0]?.photo || null,
       parentName: resolveParentName(booking.parentId, booking.contactNumber),
       parentPhone: resolveParentPhone(booking.parentId, booking.contactNumber),
       parentPhoto: booking.parentId?.profileImage?.url || booking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
@@ -348,7 +351,7 @@ export default function ServiceScreen() {
                 distance: ACTIVE_JOB.distance,
                 childName: ACTIVE_JOB.childName,
                 childAge: ACTIVE_JOB.childAge,
-                childPhoto: ACTIVE_JOB.childPhoto,
+                childPhoto: ACTIVE_JOB.childPhotoUrl || ACTIVE_JOB.childPhoto,
                 childNotes: ACTIVE_JOB.childNotes,
                 date: ACTIVE_JOB.date,
                 time: ACTIVE_JOB.time,

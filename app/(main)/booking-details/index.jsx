@@ -9,11 +9,18 @@ import { fonts } from '../../../constants/font';
 import { promptAndStartCall } from '../../../src/utils/callLauncher';
 import { resolveParentName, resolveParentPhone, getCleanPhoneNumber } from '../../../src/utils/parentHelper';
 import { getBookingDetailAsNanny } from '../../../src/services/bookingService';
+import { resolveChildName, resolveChildAge, resolveChildPhoto, resolveChildList } from '../../../src/utils/childHelper';
 
 export default function BookingDetailsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+
+  const initialChildPhoto = params.childPhoto
+    ? typeof params.childPhoto === 'string' && params.childPhoto.startsWith('http')
+      ? { uri: params.childPhoto }
+      : params.childPhoto
+    : require('../../../assets/icons/jack.svg');
 
   const [bookingData, setBookingData] = useState({
     id: params.id || '',
@@ -25,8 +32,9 @@ export default function BookingDetailsScreen() {
     distance: params.distance || '1.8 km',
     childName: params.childName || 'Child',
     childAge: params.childAge || '',
-    childPhoto: params.childPhoto || require('../../../assets/icons/nanny-image.svg'),
+    childPhoto: initialChildPhoto,
     childNotes: params.childNotes || '',
+    children: [],
     date: params.date || 'Today',
     time: params.time || '',
   });
@@ -46,9 +54,10 @@ export default function BookingDetailsScreen() {
             const contact = b.contactNumber;
             const resolvedName = resolveParentName(p, contact);
             const resolvedPhone = resolveParentPhone(p, contact);
-            const child = b.childIds?.[0];
-            const cName = child ? `${child.firstName || ''} ${child.lastName || ''}`.trim() : null;
-            const cAge = child?.age ? `${child.age} Years Old` : child?.dateOfBirth ? `${new Date().getFullYear() - new Date(child.dateOfBirth).getFullYear()} Years Old` : null;
+            const childrenList = resolveChildList(b.childIds);
+            const cName = resolveChildName(b.childIds, null);
+            const cAge = resolveChildAge(b.childIds);
+            const cPhoto = resolveChildPhoto(b.childIds);
 
             // Format dates
             let dateStr = bookingData.date;
@@ -69,7 +78,9 @@ export default function BookingDetailsScreen() {
               address: b.address?.fullAddress || `${b.address?.area || ''} ${b.address?.city || ''}`.trim() || prev.address,
               childName: cName || prev.childName,
               childAge: cAge || prev.childAge,
+              childPhoto: cPhoto || prev.childPhoto,
               childNotes: b.parentNotes || prev.childNotes,
+              children: childrenList,
               date: dateStr,
               time: timeStr,
             }));
@@ -186,14 +197,52 @@ export default function BookingDetailsScreen() {
 
         {/* Child Details */}
         <View style={styles.card}>
-          <Text style={styles.cardSectionTitle}>Child Details</Text>
-          <View style={styles.profileRow}>
-            <Image source={bookingData.childPhoto} style={styles.avatarSmall} contentFit="cover" />
-            <View style={styles.profileInfo}>
-              <Text style={styles.nameSmall}>{bookingData.childName}</Text>
-              {!!bookingData.childAge && <Text style={styles.subtextSmall}>{bookingData.childAge}</Text>}
+          <Text style={styles.cardSectionTitle}>
+            {bookingData.children.length > 1 ? `Children Details (${bookingData.children.length})` : 'Child Details'}
+          </Text>
+          {bookingData.children && bookingData.children.length > 0 ? (
+            bookingData.children.map((child, idx) => (
+              <View
+                key={child._id || idx}
+                style={[
+                  styles.profileRow,
+                  idx > 0 && { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+                ]}
+              >
+                <Image source={child.photoSource} style={styles.avatarSmall} contentFit="cover" />
+                <View style={styles.profileInfo}>
+                  <Text style={styles.nameSmall}>{child.name}</Text>
+                  <Text style={styles.subtextSmall}>
+                    {child.ageText || ''}
+                    {child.gender ? ` • ${child.gender.charAt(0).toUpperCase() + child.gender.slice(1)}` : ''}
+                  </Text>
+                  {Array.isArray(child.allergies) && child.allergies.length > 0 && (
+                    <Text style={[styles.subtextSmall, { color: '#E11D48', marginTop: 4, fontWeight: '600' }]}>
+                      ⚠️ Allergies: {child.allergies.join(', ')}
+                    </Text>
+                  )}
+                  {!!child.specialNeeds && (
+                    <Text style={[styles.subtextSmall, { color: '#D97706', marginTop: 2 }]}>
+                      ℹ️ Special Needs: {child.specialNeeds}
+                    </Text>
+                  )}
+                  {!!child.medicalNotes && (
+                    <Text style={[styles.subtextSmall, { color: '#4B5563', marginTop: 2 }]}>
+                      💊 Medical: {child.medicalNotes}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={styles.profileRow}>
+              <Image source={bookingData.childPhoto} style={styles.avatarSmall} contentFit="cover" />
+              <View style={styles.profileInfo}>
+                <Text style={styles.nameSmall}>{bookingData.childName}</Text>
+                {!!bookingData.childAge && <Text style={styles.subtextSmall}>{bookingData.childAge}</Text>}
+              </View>
             </View>
-          </View>
+          )}
         </View>
 
         {/* Date & Time */}
