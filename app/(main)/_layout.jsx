@@ -21,10 +21,12 @@ export default function MainLayout() {
         drawerContent={(props) => <CustomDrawerContent {...props} />}
         screenOptions={{
           headerShown: false,
+          drawerType: 'front',
           drawerStyle: {
             width: '75%',
             backgroundColor: colors.background,
           },
+          overlayColor: 'rgba(0, 0, 0, 0.5)',
         }}
       >
       <Drawer.Screen

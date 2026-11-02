@@ -21,6 +21,35 @@ module.exports = function withNativeCalls(config) {
     }
     return mod;
   }]);
+  config = withDangerousMod(config, ['ios', async (mod) => {
+    const fs = require('node:fs/promises');
+    const path = require('node:path');
+    const podfilePath = path.join(mod.modRequest.platformProjectRoot, 'Podfile');
+    try {
+      let content = await fs.readFile(podfilePath, 'utf8');
+      if (!content.includes('CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES')) {
+        const postInstallPatch = `post_install do |installer|
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+      end
+    end
+
+    pch_path = File.join(__dir__, 'Pods/Target Support Files/RNFBMessaging/RNFBMessaging-prefix.pch')
+    if File.exist?(pch_path)
+      pch_content = File.read(pch_path)
+      unless pch_content.include?('RCTConvert+FIRApp.h')
+        injections = "\\n#import <React/RCTDefines.h>\\n#import <React/RCTBridgeModule.h>\\n#import <React/RCTConvert.h>\\n#import <RNFBApp/RNFBAppModule.h>\\n#import <RNFBApp/RCTConvert+FIRApp.h>\\n"
+        pch_content.sub!('#import <UIKit/UIKit.h>', "#import <UIKit/UIKit.h>#{injections}")
+        File.write(pch_path, pch_content)
+      end
+    end`;
+        content = content.replace(/post_install do \|installer\|/g, postInstallPatch);
+        await fs.writeFile(podfilePath, content, 'utf8');
+      }
+    } catch (e) {}
+    return mod;
+  }]);
   config = withMainActivity(config, (mod) => {
     const marker = '// HeyShishu pre-Android-8.1 call wake-up';
     if (!mod.modResults.contents.includes(marker)) {
