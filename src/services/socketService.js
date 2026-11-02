@@ -60,7 +60,12 @@ class SocketService {
       this.socket.on('connect', () => {
         console.log(`✅ [SocketService] Connected to ${socketUrl} | ID: ${this.socket.id}`);
         this.isConnecting = false;
+        // Attach any listeners registered before connection completed
+        this._attachQueuedListeners();
       });
+
+      // Attach any listeners registered before socket instance creation
+      this._attachQueuedListeners();
 
       this.socket.on('disconnect', (reason) => {
         console.log(`🔌 [SocketService] Disconnected. Reason: ${reason}`);
@@ -111,9 +116,14 @@ class SocketService {
   }
 
   /**
-   * Register an event listener
+   * Register an event listener (persisted across connects/reconnects)
    */
   on(event, handler) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event).add(handler);
+
     if (this.socket) {
       this.socket.on(event, handler);
     }
@@ -123,8 +133,28 @@ class SocketService {
    * Unregister an event listener
    */
   off(event, handler) {
+    if (this.listeners.has(event)) {
+      this.listeners.get(event).delete(handler);
+      if (this.listeners.get(event).size === 0) {
+        this.listeners.delete(event);
+      }
+    }
     if (this.socket) {
       this.socket.off(event, handler);
+    }
+  }
+
+  /**
+   * Attach all registered listeners to current socket instance
+   * @private
+   */
+  _attachQueuedListeners() {
+    if (!this.socket) return;
+    for (const [event, handlers] of this.listeners.entries()) {
+      for (const handler of handlers) {
+        this.socket.off(event, handler);
+        this.socket.on(event, handler);
+      }
     }
   }
 

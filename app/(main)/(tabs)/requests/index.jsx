@@ -10,6 +10,7 @@ import { useAlert } from '../../../../src/contexts/AlertContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { resolveParentName, resolveParentPhone } from '../../../../src/utils/parentHelper';
 import { resolveChildName, resolveChildAge, resolveChildPhoto } from '../../../../src/utils/childHelper';
+import { resolveBookingDateAndSchedule, resolveBookingAddress, resolveBookingDistance } from '../../../../src/utils/bookingHelper';
 
 export default function RequestsScreen() {
   const router = useRouter();
@@ -79,19 +80,8 @@ export default function RequestsScreen() {
   };
 
   const mapBookingToCard = (booking) => {
-    const start = new Date(booking.startDateTime);
-    const end = new Date(booking.endDateTime);
-    const startDateStr = start.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-    const endDateStr = end.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-    const finalDateStr = startDateStr === endDateStr ? startDateStr : `${startDateStr} - ${endDateStr}`;
-    
-    // Format AM/PM time
-    const startTimeStr = start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' });
-    const endTimeStr = end.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' });
-    
-    // Calculate duration
-    let diffHours = booking.totalSlotHours || (Math.abs(end - start) / 36e5);
-    diffHours = diffHours % 1 === 0 ? diffHours : Number(diffHours).toFixed(1);
+    const { dateStr, timeStr, totalHoursStr } = resolveBookingDateAndSchedule(booking);
+    const addressInfo = resolveBookingAddress(booking.address);
 
     const childName = resolveChildName(booking.childIds, 'Child');
     const childAge = resolveChildAge(booking.childIds) || '';
@@ -103,18 +93,19 @@ export default function RequestsScreen() {
       childName,
       age: childAge,
       type: booking.bookingType || 'hourly',
-      date: finalDateStr,
-      time: `${startTimeStr} – ${endTimeStr}`,
-      duration: `${diffHours} Hours`,
-      location: `${booking.address?.area || 'Sector 45'}, ${booking.address?.city || 'Noida'}`,
-      distance: '1.8 km', 
+      date: dateStr,
+      time: timeStr,
+      duration: totalHoursStr,
+      location: addressInfo.mapLocation || `${booking.address?.area || 'Sector 45'}, ${booking.address?.city || 'Noida'}`,
+      distance: resolveBookingDistance(booking), 
       totalAmount: booking.totalAmount != null ? `₹${booking.totalAmount}` : null,
       notes: booking.parentNotes || '',
       photo: childPhoto,
       childPhotoUrl,
       
       parentId: booking.parentId?._id || booking.parentId,
-      fullAddress: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`.trim(),
+      fullAddress: addressInfo.formattedFullAddress,
+      addressDetails: addressInfo,
       parentName: resolveParentName(booking.parentId, booking.contactNumber),
       parentPhone: resolveParentPhone(booking.parentId, booking.contactNumber),
       parentPhoto: booking.parentId?.profileImage?.url || booking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
@@ -131,6 +122,7 @@ export default function RequestsScreen() {
         parentPhone: mappedBooking.parentPhone,
         parentPhoto: mappedBooking.parentPhoto,
         address: mappedBooking.fullAddress,
+        addressDetails: JSON.stringify(mappedBooking.addressDetails || {}),
         distance: mappedBooking.distance,
         childName: mappedBooking.childName,
         childAge: mappedBooking.age,

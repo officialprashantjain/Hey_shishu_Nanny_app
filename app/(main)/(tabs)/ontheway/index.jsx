@@ -23,6 +23,7 @@ import callService from '../../../../src/services/callService';
 import { promptAndStartCall } from '../../../../src/utils/callLauncher';
 import { resolveParentName, resolveParentPhone } from '../../../../src/utils/parentHelper';
 import { resolveChildName, resolveChildAge, resolveChildPhoto } from '../../../../src/utils/childHelper';
+import { resolveBookingDateAndSchedule, resolveBookingAddress, resolveBookingDistance } from '../../../../src/utils/bookingHelper';
 
 const { width } = Dimensions.get('window');
 
@@ -57,8 +58,8 @@ export default function OnTheWayScreen() {
           onrunningBookings.find(b => b._id === activeShift.bookingId);
        
        if (!parentBooking) return null;
-       const start = new Date(parentBooking.startDateTime);
-       const end = new Date(parentBooking.endDateTime);
+       const { dateStr, timeStr } = resolveBookingDateAndSchedule(parentBooking, activeShift);
+       const addressInfo = resolveBookingAddress(parentBooking.address);
        return {
          id: parentBooking._id,
          isShift: true,
@@ -71,24 +72,25 @@ export default function OnTheWayScreen() {
          parentName: resolveParentName(parentBooking.parentId, parentBooking.contactNumber),
          parentPhone: resolveParentPhone(parentBooking.parentId, parentBooking.contactNumber),
          parentPhoto: parentBooking.parentId?.profileImage?.url || parentBooking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
-         address: parentBooking.address?.fullAddress || `${parentBooking.address?.area || ''} ${parentBooking.address?.city || ''}`.trim(),
-         distance: '1.8 km',
+         address: addressInfo.formattedFullAddress,
+         addressDetails: addressInfo,
+         distance: resolveBookingDistance(parentBooking) || '',
          childNotes: parentBooking.parentNotes || '',
-         date: new Date(activeShift.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-         time: `${start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })} – ${end.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })}`,
+         date: dateStr,
+         time: timeStr,
          destination: { 
            latitude: parentBooking.serviceLocation?.coordinates?.[1] || 22.7513, 
            longitude: parentBooking.serviceLocation?.coordinates?.[0] || 75.8946 
          },
-         fullAddress: parentBooking.address?.fullAddress || '',
+         fullAddress: addressInfo.formattedFullAddress,
        };
     }
 
     // ── SINGLE-DAY (CLASSIC) FLOW ──
     if (!ongoingBookings || ongoingBookings.length === 0) return null;
     const booking = ongoingBookings[0];
-    const start = new Date(booking.startDateTime);
-    const end = new Date(booking.endDateTime);
+    const { dateStr, timeStr } = resolveBookingDateAndSchedule(booking);
+    const addressInfo = resolveBookingAddress(booking.address);
     return {
       id: booking._id,
       parentId: booking.parentId?._id || booking.parentId,
@@ -99,16 +101,17 @@ export default function OnTheWayScreen() {
       parentName: resolveParentName(booking.parentId, booking.contactNumber),
       parentPhone: resolveParentPhone(booking.parentId, booking.contactNumber),
       parentPhoto: booking.parentId?.profileImage?.url || booking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
-      address: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`.trim(),
-      distance: '1.8 km',
+      address: addressInfo.formattedFullAddress,
+      addressDetails: addressInfo,
+      distance: resolveBookingDistance(booking) || '',
       childNotes: booking.parentNotes || '',
-      date: start.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-      time: `${start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })} – ${end.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })}`,
+      date: dateStr,
+      time: timeStr,
       destination: { 
         latitude: booking.serviceLocation?.coordinates?.[1] || 22.7513, 
         longitude: booking.serviceLocation?.coordinates?.[0] || 75.8946 
       },
-      fullAddress: booking.address?.fullAddress || '',
+      fullAddress: addressInfo.formattedFullAddress,
     };
   }, [ongoingBookings, confirmedBookings, onrunningBookings, activeShift]);
 
@@ -399,6 +402,7 @@ export default function OnTheWayScreen() {
                 parentPhone: ACTIVE_JOB.parentPhone,
                 parentPhoto: ACTIVE_JOB.parentPhoto,
                 address: ACTIVE_JOB.address,
+                addressDetails: JSON.stringify(ACTIVE_JOB.addressDetails || {}),
                 distance: ACTIVE_JOB.distance,
                 childName: ACTIVE_JOB.childName,
                 childAge: ACTIVE_JOB.childAge,

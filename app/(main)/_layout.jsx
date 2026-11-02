@@ -6,12 +6,14 @@ import { colors } from '../../constants/color';
 import IncomingCallWatcher from '../../src/components/common/IncomingCallWatcher';
 import ActiveCallTopBanner from '../../src/components/common/ActiveCallTopBanner';
 import CallOptionModal from '../../src/components/common/CallOptionModal';
+import InAppNotificationBanner from '../../src/components/common/InAppNotificationBanner';
 
 export default function MainLayout() {
   const token = useSelector((state) => state.auth.token);
   if (!token) return <Redirect href="/(auth)/login" />;
   return (
     <>
+      <InAppNotificationBanner />
       <IncomingCallWatcher />
       <ActiveCallTopBanner />
       <CallOptionModal />

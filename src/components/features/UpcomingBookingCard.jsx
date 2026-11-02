@@ -39,7 +39,9 @@ export const UpcomingBookingCard = ({ data, onStartJourney, onMessage, onCall, o
         <Ionicons name="location" size={20} color={colors.primary} />
         <View style={{ flex: 1, marginLeft: 10 }}>
           <Text style={styles.addressText}>{data.address}</Text>
-          <Text style={styles.distanceText}>{data.distance} away</Text>
+          {Boolean(data.distance) && (
+            <Text style={styles.distanceText}>{data.distance} away</Text>
+          )}
         </View>
       </View>
 

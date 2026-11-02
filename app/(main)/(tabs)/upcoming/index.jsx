@@ -13,6 +13,7 @@ import { useAlert } from '../../../../src/contexts/AlertContext';
 import { promptAndStartCall } from '../../../../src/utils/callLauncher';
 import { resolveParentName, resolveParentPhone } from '../../../../src/utils/parentHelper';
 import { resolveChildName, resolveChildAge, resolveChildPhoto } from '../../../../src/utils/childHelper';
+import { resolveBookingDateAndSchedule, resolveBookingAddress, resolveBookingDistance } from '../../../../src/utils/bookingHelper';
 
 export default function UpcomingBookingScreen() {
   const router = useRouter();
@@ -79,13 +80,8 @@ export default function UpcomingBookingScreen() {
   };
 
   const mapBookingToCard = (booking) => {
-    const start = new Date(booking.startDateTime);
-    const end = new Date(booking.endDateTime);
-    const dateStr = start.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-    
-    // Format AM/PM time
-    const startTimeStr = start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' });
-    const endTimeStr = end.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' });
+    const { dateStr, timeStr } = resolveBookingDateAndSchedule(booking);
+    const addressInfo = resolveBookingAddress(booking.address);
 
     const childName = resolveChildName(booking.childIds, 'Child');
     const childAge = resolveChildAge(booking.childIds) || '';
@@ -97,16 +93,17 @@ export default function UpcomingBookingScreen() {
       childName,
       childAge,
       date: dateStr,
-      time: `${startTimeStr} – ${endTimeStr}`,
-      address: `${booking.address?.area || 'Sector 45'}, ${booking.address?.city || 'Noida'}`,
-      distance: '1.8 km', 
+      time: timeStr,
+      address: addressInfo.mapLocation || `${booking.address?.area || 'Sector 45'}, ${booking.address?.city || 'Noida'}`,
+      distance: resolveBookingDistance(booking), 
       childNotes: booking.parentNotes || '',
       childPhoto,
       childPhotoUrl,
       parentPhoto: booking.parentId?.profileImage?.url || booking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
       
       parentId: booking.parentId?._id || booking.parentId,
-      fullAddress: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`.trim(),
+      fullAddress: addressInfo.formattedFullAddress,
+      addressDetails: addressInfo,
       parentName: resolveParentName(booking.parentId, booking.contactNumber),
       parentPhone: resolveParentPhone(booking.parentId, booking.contactNumber),
     };
@@ -144,6 +141,7 @@ export default function UpcomingBookingScreen() {
         parentPhone: mappedBooking.parentPhone,
         parentPhoto: mappedBooking.parentPhoto,
         address: mappedBooking.fullAddress,
+        addressDetails: JSON.stringify(mappedBooking.addressDetails || {}),
         distance: mappedBooking.distance,
         childName: mappedBooking.childName,
         childAge: mappedBooking.childAge,

@@ -18,7 +18,7 @@ export const SmallRequestCard = ({ data, onPress }) => {
         <Text style={styles.age}>{data.age}</Text>
         
         <View style={styles.footerRow}>
-          <Text style={styles.details}>{data.time} • {data.distance}</Text>
+          <Text style={styles.details}>{data.time}{data.distance ? ` • ${data.distance}` : ''}</Text>
           <Ionicons name="chevron-forward" size={18} color={colors.primary} />
         </View>
       </View>

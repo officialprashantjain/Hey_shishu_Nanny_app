@@ -10,6 +10,7 @@ import { promptAndStartCall } from '../../../src/utils/callLauncher';
 import { resolveParentName, resolveParentPhone, getCleanPhoneNumber } from '../../../src/utils/parentHelper';
 import { getBookingDetailAsNanny } from '../../../src/services/bookingService';
 import { resolveChildName, resolveChildAge, resolveChildPhoto, resolveChildList } from '../../../src/utils/childHelper';
+import { resolveBookingDateAndSchedule, resolveBookingAddress, resolveBookingDistance } from '../../../src/utils/bookingHelper';
 
 export default function BookingDetailsScreen() {
   const router = useRouter();
@@ -22,20 +23,32 @@ export default function BookingDetailsScreen() {
       : params.childPhoto
     : require('../../../assets/icons/jack.svg');
 
+  let parsedInitialAddressDetails = null;
+  if (params.addressDetails) {
+    try {
+      parsedInitialAddressDetails = typeof params.addressDetails === 'string'
+        ? JSON.parse(params.addressDetails)
+        : params.addressDetails;
+    } catch (_) {}
+  }
+
+  const initialDistance = (params.distance && params.distance !== '1.8 km') ? params.distance : null;
+
   const [bookingData, setBookingData] = useState({
     id: params.id || '',
     parentId: params.parentId || params.receiverId || null,
     parentName: resolveParentName(params.parentName, params.parentPhone),
     parentPhone: resolveParentPhone(params.parentPhone),
     parentPhoto: params.parentPhoto || require('../../../assets/icons/nanny-image.svg'),
-    address: params.address || 'Address not specified',
-    distance: params.distance || '1.8 km',
+    address: parsedInitialAddressDetails?.formattedFullAddress || params.address || 'Address not specified',
+    addressDetails: parsedInitialAddressDetails,
+    distance: initialDistance,
     childName: params.childName || 'Child',
     childAge: params.childAge || '',
     childPhoto: initialChildPhoto,
     childNotes: params.childNotes || '',
     children: [],
-    date: params.date || 'Today',
+    date: params.date || '',
     time: params.time || '',
   });
 
@@ -48,7 +61,7 @@ export default function BookingDetailsScreen() {
       getBookingDetailAsNanny(params.id)
         .then((res) => {
           if (!isMounted) return;
-          const b = res?.data?.data?.booking;
+          const b = res?.data?.booking || res?.data?.data?.booking || res?.booking;
           if (b) {
             const p = b.parentId;
             const contact = b.contactNumber;
@@ -59,15 +72,10 @@ export default function BookingDetailsScreen() {
             const cAge = resolveChildAge(b.childIds);
             const cPhoto = resolveChildPhoto(b.childIds);
 
-            // Format dates
-            let dateStr = bookingData.date;
-            let timeStr = bookingData.time;
-            if (b.startDateTime && b.endDateTime) {
-              const start = new Date(b.startDateTime);
-              const end = new Date(b.endDateTime);
-              dateStr = start.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-              timeStr = `${start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} – ${end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
-            }
+            // Format dates accurately using bookingDate & slots
+            const schedule = resolveBookingDateAndSchedule(b);
+            const addressInfo = resolveBookingAddress(b.address);
+            const dynamicDistance = resolveBookingDistance(b);
 
             setBookingData((prev) => ({
               ...prev,
@@ -75,14 +83,16 @@ export default function BookingDetailsScreen() {
               parentName: resolvedName || prev.parentName,
               parentPhone: resolvedPhone || prev.parentPhone,
               parentPhoto: p?.profileImage?.url || p?.profileImage || prev.parentPhoto,
-              address: b.address?.fullAddress || `${b.address?.area || ''} ${b.address?.city || ''}`.trim() || prev.address,
+              address: addressInfo.formattedFullAddress || prev.address,
+              addressDetails: addressInfo,
+              distance: dynamicDistance || prev.distance,
               childName: cName || prev.childName,
               childAge: cAge || prev.childAge,
               childPhoto: cPhoto || prev.childPhoto,
               childNotes: b.parentNotes || prev.childNotes,
               children: childrenList,
-              date: dateStr,
-              time: timeStr,
+              date: schedule.dateStr || prev.date,
+              time: schedule.timeStr || prev.time,
             }));
           }
         })
@@ -187,10 +197,51 @@ export default function BookingDetailsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardSectionTitle}>Address</Text>
           <View style={styles.addressBox}>
-            <Ionicons name="location" size={20} color={colors.primary} />
+            <Ionicons name="location" size={22} color={colors.primary} style={{ marginTop: 2 }} />
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={styles.addressText}>{bookingData.address}</Text>
-              <Text style={styles.distanceText}>{bookingData.distance} away</Text>
+
+              {/* Manually Filled Address Details */}
+              {(!!bookingData.addressDetails?.flatNumber ||
+                !!bookingData.addressDetails?.landmark ||
+                (!!bookingData.addressDetails?.fullAddressText &&
+                  bookingData.addressDetails.fullAddressText !== bookingData.addressDetails?.mapLocation &&
+                  !bookingData.addressDetails?.mapLocation?.includes(bookingData.addressDetails.fullAddressText))) ? (
+                <View style={styles.addressSectionBox}>
+                  <Text style={styles.addressSubHeader}>MANUAL DETAILS (FILLED BY PARENT)</Text>
+                  {!!bookingData.addressDetails?.flatNumber && (
+                    <Text style={styles.addressDetailRow}>
+                      🏠 <Text style={styles.addressLabelBold}>Flat / House / Floor:</Text> {bookingData.addressDetails.flatNumber}
+                    </Text>
+                  )}
+                  {!!bookingData.addressDetails?.landmark && (
+                    <Text style={styles.addressDetailRow}>
+                      📍 <Text style={styles.addressLabelBold}>Landmark:</Text> {bookingData.addressDetails.landmark}
+                    </Text>
+                  )}
+                  {!!bookingData.addressDetails?.fullAddressText &&
+                    bookingData.addressDetails.fullAddressText !== bookingData.addressDetails.mapLocation &&
+                    !bookingData.addressDetails?.mapLocation?.includes(bookingData.addressDetails.fullAddressText) && (
+                    <Text style={styles.addressDetailRow}>
+                      📝 <Text style={styles.addressLabelBold}>House / Street:</Text> {bookingData.addressDetails.fullAddressText}
+                    </Text>
+                  )}
+                </View>
+              ) : null}
+
+              {/* Google Map Selected Location */}
+              {!!bookingData.addressDetails?.mapLocation && (
+                <View style={[styles.addressSectionBox, { marginTop: 8 }]}>
+                  <Text style={styles.addressSubHeader}>GOOGLE MAP LOCATION</Text>
+                  <Text style={styles.addressDetailRow}>
+                    🗺️ <Text style={styles.addressLabelBold}>Area & City:</Text> {bookingData.addressDetails.mapLocation}
+                  </Text>
+                </View>
+              )}
+
+              {Boolean(bookingData.distance) && (
+                <Text style={styles.distanceText}>{bookingData.distance} away</Text>
+              )}
             </View>
           </View>
         </View>
@@ -250,7 +301,11 @@ export default function BookingDetailsScreen() {
           <Text style={styles.cardSectionTitle}>Date & Time</Text>
           <View style={styles.infoRow}>
             <Ionicons name="time-outline" size={18} color={colors.description} />
-            <Text style={styles.infoText}>{bookingData.date} {bookingData.time ? `| ${bookingData.time}` : ''}</Text>
+            <Text style={styles.infoText}>
+              {bookingData.date && bookingData.time
+                ? `${bookingData.date} | ${bookingData.time}`
+                : bookingData.date || bookingData.time || 'Schedule not specified'}
+            </Text>
           </View>
         </View>
 
@@ -406,10 +461,36 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   distanceText: {
-    marginTop: 4,
+    marginTop: 6,
     color: colors.secondary,
     fontFamily: fonts.rubikBold,
     fontSize: 12,
+  },
+  addressSectionBox: {
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E7E5E4',
+  },
+  addressSubHeader: {
+    fontFamily: fonts.rubikBold,
+    fontSize: 10,
+    color: colors.description,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  addressDetailRow: {
+    fontFamily: fonts.rubik,
+    fontSize: 13,
+    color: colors.primary,
+    marginTop: 3,
+    lineHeight: 18,
+  },
+  addressLabelBold: {
+    fontFamily: fonts.rubikBold,
+    color: colors.primary,
   },
   infoRow: {
     flexDirection: 'row',

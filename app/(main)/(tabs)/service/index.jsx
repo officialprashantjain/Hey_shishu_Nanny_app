@@ -20,6 +20,7 @@ import { useCallback, useMemo } from 'react';
 import { promptAndStartCall } from '../../../../src/utils/callLauncher';
 import { resolveParentName, resolveParentPhone } from '../../../../src/utils/parentHelper';
 import { resolveChildName, resolveChildAge, resolveChildPhoto } from '../../../../src/utils/childHelper';
+import { resolveBookingDateAndSchedule, resolveBookingAddress, resolveBookingDistance } from '../../../../src/utils/bookingHelper';
 
 // ── Dummy Active Context ───────────────────────────────────────────────────
 export default function ServiceScreen() {
@@ -42,9 +43,8 @@ export default function ServiceScreen() {
     if (activeShift) {
        const parentBooking = onrunningBookings.find(b => b._id === activeShift.bookingId);
        if (!parentBooking) return null;
-       const start = new Date(parentBooking.startDateTime);
-       const end = new Date(parentBooking.endDateTime);
-       const totalHours = Math.round((end - start) / (1000 * 60 * 60));
+       const { dateStr, timeStr, startTimeStr, totalHoursStr } = resolveBookingDateAndSchedule(parentBooking, activeShift);
+       const addressInfo = resolveBookingAddress(parentBooking.address);
        
        return {
          id: parentBooking._id,
@@ -59,13 +59,14 @@ export default function ServiceScreen() {
          parentName: resolveParentName(parentBooking.parentId, parentBooking.contactNumber),
          parentPhone: resolveParentPhone(parentBooking.parentId, parentBooking.contactNumber),
          parentPhoto: parentBooking.parentId?.profileImage?.url || parentBooking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
-         address: parentBooking.address?.fullAddress || `${parentBooking.address?.area || ''} ${parentBooking.address?.city || ''}`.trim(),
-         distance: '1.8 km',
-         startTime: start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' }),
-         totalHours: `${totalHours} Hours`,
+         address: addressInfo.formattedFullAddress,
+         addressDetails: addressInfo,
+         distance: resolveBookingDistance(parentBooking) || '',
+         startTime: startTimeStr,
+         totalHours: totalHoursStr,
          childNotes: parentBooking.parentNotes || '',
-         date: new Date(activeShift.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-         time: `${start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })} – ${end.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })}`,
+         date: dateStr,
+         time: timeStr,
          startDateTime: parentBooking.startDateTime,
          endDateTime: parentBooking.endDateTime,
        };
@@ -74,9 +75,8 @@ export default function ServiceScreen() {
     // ── CLASSIC SINGLE-DAY FLOW ──
     if (!onrunningBookings || onrunningBookings.length === 0) return null;
     const booking = onrunningBookings[0];
-    const start = new Date(booking.startDateTime);
-    const end = new Date(booking.endDateTime);
-    const totalHours = Math.round((end - start) / (1000 * 60 * 60));
+    const { dateStr, timeStr, startTimeStr, totalHoursStr } = resolveBookingDateAndSchedule(booking);
+    const addressInfo = resolveBookingAddress(booking.address);
     
     return {
       id: booking._id,
@@ -88,13 +88,14 @@ export default function ServiceScreen() {
       parentName: resolveParentName(booking.parentId, booking.contactNumber),
       parentPhone: resolveParentPhone(booking.parentId, booking.contactNumber),
       parentPhoto: booking.parentId?.profileImage?.url || booking.parentId?.profileImage || require('../../../../assets/icons/nanny-image.svg'),
-      address: booking.address?.fullAddress || `${booking.address?.area || ''} ${booking.address?.city || ''}`.trim(),
-      distance: '1.8 km',
-      startTime: start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' }),
-      totalHours: `${totalHours} Hours`,
+      address: addressInfo.formattedFullAddress,
+      addressDetails: addressInfo,
+      distance: resolveBookingDistance(booking) || '',
+      startTime: startTimeStr,
+      totalHours: totalHoursStr,
       childNotes: booking.parentNotes || '',
-      date: start.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-      time: `${start.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })} – ${end.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })}`,
+      date: dateStr,
+      time: timeStr,
       startDateTime: booking.startDateTime,
       endDateTime: booking.endDateTime,
     };
@@ -348,6 +349,7 @@ export default function ServiceScreen() {
                 parentPhone: ACTIVE_JOB.parentPhone,
                 parentPhoto: ACTIVE_JOB.parentPhoto,
                 address: ACTIVE_JOB.address,
+                addressDetails: JSON.stringify(ACTIVE_JOB.addressDetails || {}),
                 distance: ACTIVE_JOB.distance,
                 childName: ACTIVE_JOB.childName,
                 childAge: ACTIVE_JOB.childAge,
