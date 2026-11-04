@@ -19,6 +19,11 @@
       "googleServicesFile": "./config/GoogleService-Info.plist",
       "buildNumber": "3",
       "infoPlist": {
+        "UIBackgroundModes": [
+          "audio",
+          "location",
+          "fetch"
+        ],
         "NSLocationWhenInUseUsageDescription": "Nanny App needs your location to show your live position to parents.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Nanny App needs location to track your route.",
         "NSMicrophoneUsageDescription": "Nanny App needs microphone to record session audio for safety."

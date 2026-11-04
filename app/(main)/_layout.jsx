@@ -5,6 +5,7 @@ import CustomDrawerContent from '../../src/components/layout/CustomDrawerContent
 import { colors } from '../../constants/color';
 import IncomingCallWatcher from '../../src/components/common/IncomingCallWatcher';
 import ActiveCallTopBanner from '../../src/components/common/ActiveCallTopBanner';
+import ActiveRecordingTopBanner from '../../src/components/common/ActiveRecordingTopBanner';
 import CallOptionModal from '../../src/components/common/CallOptionModal';
 import InAppNotificationBanner from '../../src/components/common/InAppNotificationBanner';
 
@@ -16,6 +17,7 @@ export default function MainLayout() {
       <InAppNotificationBanner />
       <IncomingCallWatcher />
       <ActiveCallTopBanner />
+      <ActiveRecordingTopBanner />
       <CallOptionModal />
       <Drawer
         drawerContent={(props) => <CustomDrawerContent {...props} />}

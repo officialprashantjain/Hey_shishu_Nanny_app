@@ -18,6 +18,13 @@ let pollTimer;
 let pollBusy = false;
 let notifee, EventType, AndroidImportance, AndroidCategory, AndroidVisibility, AndroidForegroundServiceType;
 let messaging, callKeep, voip;
+let safetyForegroundResolver = null;
+export function stopSafetyForeground() {
+  if (safetyForegroundResolver) {
+    try { safetyForegroundResolver(); } catch (_) {}
+    safetyForegroundResolver = null;
+  }
+}
 const endedIds = new Set();
 const answeredIds = new Set();
 const guarded = (fn) => (...args) => Promise.resolve(fn(...args)).catch((error) => {
@@ -249,7 +256,14 @@ if (isNative) {
     };
     notifee.onBackgroundEvent(event);
     notifee.onForegroundEvent(guarded(event));
-    notifee.registerForegroundService(() => new Promise((resolve) => { stopService = resolve; startPolling(); }));
+    notifee.registerForegroundService((notification) => new Promise((resolve) => {
+      if (notification?.id === 'nanny_safety_fg_service') {
+        safetyForegroundResolver = resolve;
+      } else {
+        stopService = resolve;
+        startPolling();
+      }
+    }));
   }
   if (callKeep) {
     const callKeepEvent = async (name, data) => {

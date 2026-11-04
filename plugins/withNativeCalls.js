@@ -16,7 +16,7 @@ module.exports = function withNativeCalls(config) {
     await fs.writeFile(path.join(dir, 'ic_stat_call.xml'), '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFF" android:pathData="M6.62,10.79a15.05,15.05 0,0 0,6.59 6.59l2.2,-2.2a1,1 0,0 1,1.02 -0.24c1.12,0.37 2.33,0.57 3.57,0.57a1,1 0,0 1,1 1V20a1,1 0,0 1,-1 1C10.61,21 3,13.39 3,4a1,1 0,0 1,1 -1h3.5a1,1 0,0 1,1 1c0,1.25 0.2,2.45 0.57,3.57a1,1 0,0 1,-0.25 1.02z"/></vector>');
     const javaDir = path.join(mod.modRequest.platformProjectRoot, 'app/src/main/java/com/heyshishu/nativecalls');
     await fs.mkdir(javaDir, { recursive: true });
-    for (const filename of ['CallPermissionsModule.kt', 'CallPermissionsPackage.kt']) {
+    for (const filename of ['CallPermissionsModule.kt', 'CallPermissionsPackage.kt', 'ShishuSafetyMonitorService.kt']) {
       await fs.copyFile(path.join(__dirname, 'android', filename), path.join(javaDir, filename));
     }
     return mod;
@@ -80,6 +80,13 @@ module.exports = function withNativeCalls(config) {
     let service = app.service.find((item) => item.$['android:name'] === serviceName);
     if (!service) { service = { $: { 'android:name': serviceName } }; app.service.push(service); }
     service.$['android:foregroundServiceType'] = 'microphone';
+
+    const safetyServiceName = 'com.heyshishu.nativecalls.ShishuSafetyMonitorService';
+    let safetyService = app.service.find((item) => item.$['android:name'] === safetyServiceName);
+    if (!safetyService) {
+      safetyService = { $: { 'android:name': safetyServiceName, 'android:stopWithTask': 'false' } };
+      app.service.push(safetyService);
+    }
     return mod;
   });
   config = withInfoPlist(config, (mod) => {

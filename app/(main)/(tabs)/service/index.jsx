@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchOnrunningBookings, completeSessionBooking, selectOnrunningBookings, selectBookingLoading, selectActiveShift, endDailyShift } from '../../../../src/redux/slices/bookingSlice';
 import { sendEndOtpApi } from '../../../../src/services/bookingService';
+import audioHeartbeatService from '../../../../src/services/audioHeartbeatService';
 import { useAlert } from '../../../../src/contexts/AlertContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo } from 'react';
@@ -41,7 +42,7 @@ export default function ServiceScreen() {
   const ACTIVE_JOB = useMemo(() => {
     // ── MULTI-DAY SHIFT FLOW ──
     if (activeShift) {
-       const parentBooking = onrunningBookings.find(b => b._id === activeShift.bookingId);
+       const parentBooking = onrunningBookings.find(b => b._id === (activeShift.bookingId?._id || activeShift.bookingId));
        if (!parentBooking) return null;
        const { dateStr, timeStr, startTimeStr, totalHoursStr } = resolveBookingDateAndSchedule(parentBooking, activeShift);
        const addressInfo = resolveBookingAddress(parentBooking.address);
@@ -69,6 +70,7 @@ export default function ServiceScreen() {
          time: timeStr,
          startDateTime: parentBooking.startDateTime,
          endDateTime: parentBooking.endDateTime,
+         hasAudioRecording: Boolean(parentBooking?.hasAudioRecording ?? activeShift?.bookingId?.hasAudioRecording ?? false),
        };
     }
 
@@ -98,12 +100,45 @@ export default function ServiceScreen() {
       time: timeStr,
       startDateTime: booking.startDateTime,
       endDateTime: booking.endDateTime,
+      hasAudioRecording: Boolean(booking?.hasAudioRecording ?? false),
     };
   }, [onrunningBookings, activeShift]);
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [micPermissionGranted, setMicPermissionGranted] = useState(false);
-  const [isRecording, setIsRecording] = useState(true); // Default to simulating ON state
+  const [heartbeatState, setHeartbeatState] = useState({
+    status: 'idle',
+    intervalMins: 5,
+    durationSecs: 30,
+    remainingSecs: 0,
+    isRecording: false,
+    secondsElapsed: 0,
+  });
+  const isRecording = heartbeatState.status === 'recording' || heartbeatState.isRecording;
+
+  // ── Periodic Audio Heartbeat Lifecycle ─────────────────────────────────────
+  // Subscribe to live audio heartbeat updates across the session (synced with top banner)
+  useEffect(() => {
+    const unsubscribe = audioHeartbeatService.subscribe((state) => {
+      setHeartbeatState((prev) => ({ ...prev, ...state }));
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const sessionId = activeShift?._id || ACTIVE_JOB?.shiftId || ACTIVE_JOB?.id;
+    const isAudioRecordingOpted = Boolean(ACTIVE_JOB?.hasAudioRecording);
+    if (sessionId && isAudioRecordingOpted) {
+      console.log('[ServiceScreen] 🎙️ Starting periodic audio heartbeat for session:', sessionId);
+      audioHeartbeatService.start(sessionId);
+    } else {
+      if (sessionId && !isAudioRecordingOpted) {
+        console.log('[ServiceScreen] ℹ️ Session active, but audio recording was not opted by parent:', sessionId);
+      }
+      audioHeartbeatService.stop();
+    }
+    // Do NOT stop on component unmount so heartbeat keeps running when nanny switches tabs
+  }, [activeShift?._id, ACTIVE_JOB?.shiftId, ACTIVE_JOB?.id, ACTIVE_JOB?.hasAudioRecording]);
   
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -228,23 +263,36 @@ export default function ServiceScreen() {
   // ── Permissions ────────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
+      try {
+        const { status } = await Audio.requestPermissionsAsync();
+        const granted = status === 'granted';
+        setMicPermissionGranted(granted);
+        if (granted) {
+          const sessionId = activeShift?._id || ACTIVE_JOB?.shiftId || ACTIVE_JOB?.id;
+          const isAudioRecordingOpted = Boolean(ACTIVE_JOB?.hasAudioRecording);
+          if (sessionId && isAudioRecordingOpted && !audioHeartbeatService.isRecordingActive && !audioHeartbeatService.activeShiftId) {
+            audioHeartbeatService.start(sessionId, (state) => {
+              setHeartbeatState((prev) => ({ ...prev, ...state }));
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[ServiceScreen] Permission error:', err);
         setMicPermissionGranted(false);
-        setIsRecording(false);
-      } else {
-        setMicPermissionGranted(true);
       }
     })();
-  }, []);
+  }, [activeShift?._id, ACTIVE_JOB?.shiftId, ACTIVE_JOB?.id, ACTIVE_JOB?.hasAudioRecording]);
 
   const toggleRecording = () => {
     if (!micPermissionGranted) {
-      showAlert('Permission Denied', 'Microphone access is not granted.');
+      showAlert('Permission Denied', 'Microphone access is not granted. Please enable it in Settings.');
       return;
     }
-    setIsRecording(!isRecording);
-    // Real implementation would use Audio.Recording here.
+    if (isRecording) {
+      showAlert('Recording Active', 'Audio safety clip is actively recording.');
+    } else {
+      audioHeartbeatService.triggerManualSample();
+    }
   };
 
   // ── OTP Handlers ──────────────────────────────────────────────────────────
@@ -278,6 +326,7 @@ export default function ServiceScreen() {
         // Multi-Day / Shift completion flow
         const resultAction = await dispatch(endDailyShift({ shiftId: ACTIVE_JOB.shiftId, otp: enteredOtp }));
         if (endDailyShift.fulfilled.match(resultAction)) {
+           audioHeartbeatService.stop();
            setShowOtpModal(false);
            setOtp(['', '', '', '']);
            setShowSuccessModal(true);
@@ -291,6 +340,7 @@ export default function ServiceScreen() {
         // Classic Session flow
         const resultAction = await dispatch(completeSessionBooking({ id: ACTIVE_JOB.id, otp: enteredOtp }));
         if (completeSessionBooking.fulfilled.match(resultAction)) {
+            audioHeartbeatService.stop();
             setShowOtpModal(false);
             setOtp(['', '', '', '']);
             setShowSuccessModal(true);
@@ -393,30 +443,74 @@ export default function ServiceScreen() {
         </View>
 
         {/* ── VOICE RECORDING WIDGET ──────────────────────────────────────── */}
-        <View style={styles.recordingArea}>
-          <Text style={styles.recordingStatusLabel}>
-            Voice Recording is <Text style={{ color: isRecording ? '#4CAF50' : colors.description }}>
-              {isRecording ? 'ON' : 'OFF'}
+        {ACTIVE_JOB?.hasAudioRecording ? (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={async () => {
+              if (!micPermissionGranted) {
+                const granted = await audioHeartbeatService.requestPermissions();
+                setMicPermissionGranted(granted);
+                if (granted) {
+                  const sessionId = activeShift?._id || ACTIVE_JOB?.shiftId || ACTIVE_JOB?.id;
+                  if (sessionId) {
+                    audioHeartbeatService.start(sessionId, (state) => setHeartbeatState((prev) => ({ ...prev, ...state })));
+                  }
+                }
+                return;
+              }
+              if (isRecording) {
+                showAlert('Recording Sample', 'Audio safety check-in is actively recording right now.');
+              } else {
+                showAlert(
+                  'Periodic Safety Check-in',
+                  `Voice check-ins are recorded automatically every ${heartbeatState.intervalMins || 30} minutes. Would you like to record a sample now?`,
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Record Now', onPress: () => audioHeartbeatService.triggerManualSample() },
+                  ]
+                );
+              }
+            }}
+            style={styles.recordingArea}
+          >
+            <Text style={styles.recordingStatusLabel}>
+              Voice Recording is <Text style={{ color: isRecording ? colors.error : '#4CAF50', fontWeight: 'bold' }}>
+                {isRecording
+                  ? `RECORDING SAMPLE (${heartbeatState.secondsElapsed || 0}s / ${heartbeatState.durationSecs || 30}s)`
+                  : heartbeatState.status === 'uploading'
+                  ? 'SYNCING...'
+                  : 'ON (PERIODIC)'}
+              </Text>
             </Text>
-          </Text>
+            {heartbeatState.status === 'idle' && (heartbeatState.remainingSecs || 0) > 0 && (
+              <Text style={{ fontSize: 11, color: colors.description, textAlign: 'center', marginTop: 2, marginBottom: 6 }}>
+                Periodic safety sample every {heartbeatState.intervalMins}m • Next in: {Math.floor((heartbeatState.remainingSecs || 0) / 60)}m {(heartbeatState.remainingSecs || 0) % 60}s
+              </Text>
+            )}
 
-          <View style={styles.audioControlBox}>
-            <View style={[styles.micIconBox, !isRecording && styles.micIconBoxOff]}>
-              <Ionicons name={isRecording ? "mic" : "mic-off"} size={28} color={isRecording ? colors.error : colors.white} />
+            <View style={styles.audioControlBox}>
+              <View style={[styles.micIconBox, !isRecording && styles.micIconBoxOff]}>
+                <Ionicons name={isRecording ? "mic" : "mic-off"} size={28} color={isRecording ? colors.error : colors.white} />
+              </View>
+              
+              <View style={styles.wavesContainer}>
+                {renderSoundWaves()}
+              </View>
             </View>
-            
-            <View style={styles.wavesContainer}>
-              {renderSoundWaves()}
+          </TouchableOpacity>
+        ) : (
+          <View style={[styles.recordingArea, { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0', borderWidth: 1, paddingVertical: 14 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
+              <Ionicons name="mic-off-outline" size={20} color="#64748B" />
+              <Text style={{ fontSize: 14, fontFamily: fonts.semiBold, color: '#475569' }}>
+                Voice Recording is <Text style={{ color: '#64748B', fontWeight: 'bold' }}>OFF</Text>
+              </Text>
             </View>
-
-            {/* <TouchableOpacity 
-              style={[styles.stopBtn, !isRecording && { backgroundColor: colors.primary }]} 
-              onPress={toggleRecording}
-            >
-              <Text style={styles.stopBtnText}>{isRecording ? 'Stop' : 'Start'}</Text>
-            </TouchableOpacity> */}
+            <Text style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', paddingHorizontal: 12 }}>
+              Standard Session • Safety audio add-on was not selected by parent during booking
+            </Text>
           </View>
-        </View>
+        )}
 
         {/* ── SOS EMERGENCY BUTTON ─────────────────────────────────────────── */}
         <TouchableOpacity style={styles.sosButton} onPress={() => setShowSosModal(true)}>
