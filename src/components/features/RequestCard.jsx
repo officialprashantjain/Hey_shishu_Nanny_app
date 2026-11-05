@@ -91,12 +91,22 @@ export const RequestCard = ({ data, onAccept, onDecline, onViewDetails, headerTi
 const DetailRow = ({ icon, label, value, highlight }) => (
   <View style={styles.detailRow}>
     <View style={styles.detailLeft}>
-      <Ionicons name={icon} size={20} color={colors.primary} />
+      <Ionicons name={icon} size={18} color={colors.primary} />
       <Text style={styles.detailLabel}>{label}</Text>
     </View>
     <View style={styles.detailRight}>
-      <Text style={styles.detailValue}>{value}</Text>
-      {highlight && <Text style={styles.highlightText}> {highlight}</Text>}
+      <Text 
+        style={styles.detailValue} 
+        numberOfLines={2} 
+        ellipsizeMode="tail"
+      >
+        {value}
+      </Text>
+      {Boolean(highlight) && (
+        <Text style={styles.highlightText} numberOfLines={1}>
+          {highlight}
+        </Text>
+      )}
     </View>
   </View>
 );
@@ -202,13 +212,13 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   detailLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    width: '35%',
+    gap: 8,
+    flexShrink: 0,
   },
   detailLabel: {
     color: colors.description,
@@ -216,20 +226,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   detailRight: {
+    flex: 1,
     flexDirection: 'row',
-    width: '65%',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'flex-end',
+    gap: 8,
+    marginLeft: 10,
   },
   detailValue: {
+    flex: 1,
     color: colors.primary,
     fontFamily: fonts.rubik,
     fontSize: 14,
+    textAlign: 'right',
   },
   highlightText: {
     color: colors.secondary,
     fontFamily: fonts.rubikBold,
-    fontSize: 14,
+    fontSize: 13,
+    flexShrink: 0,
+    textAlign: 'right',
   },
   noteSection: {
     marginBottom: 24,
