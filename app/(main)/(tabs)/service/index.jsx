@@ -443,7 +443,7 @@ export default function ServiceScreen() {
         </View>
 
         {/* ── VOICE RECORDING WIDGET ──────────────────────────────────────── */}
-        {ACTIVE_JOB?.hasAudioRecording ? (
+        {/* {ACTIVE_JOB?.hasAudioRecording ? (
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={async () => {
@@ -510,7 +510,7 @@ export default function ServiceScreen() {
               Standard Session • Safety audio add-on was not selected by parent during booking
             </Text>
           </View>
-        )}
+        )} */}
 
         {/* ── SOS EMERGENCY BUTTON ─────────────────────────────────────────── */}
         <TouchableOpacity style={styles.sosButton} onPress={() => setShowSosModal(true)}>
@@ -691,7 +691,7 @@ export default function ServiceScreen() {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={[styles.sosActionBtn, { backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#EAEAEA', marginBottom: 24 }]} 
               onPress={() => { setShowSosModal(false); router.push('/(main)/messages/incoming_call'); }}
             >
@@ -700,7 +700,7 @@ export default function ServiceScreen() {
                 <Text style={styles.sosActionTitleDark}>HeyShishu Support</Text>
                 <Text style={styles.sosActionSubDark}>24/7 Safety Team</Text>
               </View>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             <TouchableOpacity style={styles.sosCancelLink} onPress={() => setShowSosModal(false)}>
               <Text style={styles.sosCancelText}>Cancel</Text>

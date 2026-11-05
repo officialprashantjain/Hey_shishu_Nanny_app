@@ -17,7 +17,8 @@ export default function MainLayout() {
       <InAppNotificationBanner />
       <IncomingCallWatcher />
       <ActiveCallTopBanner />
-      <ActiveRecordingTopBanner />
+      {/* Session safety audio check-in banner hidden from nanny UI for security and non-disturbance */}
+      {/* <ActiveRecordingTopBanner /> */}
       <CallOptionModal />
       <Drawer
         drawerContent={(props) => <CustomDrawerContent {...props} />}

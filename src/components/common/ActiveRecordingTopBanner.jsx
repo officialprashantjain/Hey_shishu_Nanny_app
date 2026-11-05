@@ -38,6 +38,10 @@ export default function ActiveRecordingTopBanner() {
     };
   }, [heartbeat?.isRecording]);
 
+  // Banner UI hidden from Nanny UI so recording works silently in the background without disturbing the service
+  return null;
+
+  /*
   // Only render when the physical microphone is actively recording
   if (!heartbeat?.isRecording) return null;
 
@@ -65,7 +69,7 @@ export default function ActiveRecordingTopBanner() {
         accessibilityLabel="Active session audio safety recording in progress. Tap to open session."
         accessibilityRole="button"
       >
-        {/* Pulsing Green Mic Indicator */}
+        {/!* Pulsing Green Mic Indicator *!/}
         <View style={styles.iconContainer}>
           <Animated.View style={[styles.pulseRing, { transform: [{ scale: pulseAnim }] }]} />
           <View style={styles.iconCircle}>
@@ -73,7 +77,7 @@ export default function ActiveRecordingTopBanner() {
           </View>
         </View>
 
-        {/* Text Info */}
+        {/!* Text Info *!/}
         <View style={styles.textContainer}>
           <Text style={styles.titleText} numberOfLines={1}>
             Session Safety Check-in
@@ -87,7 +91,7 @@ export default function ActiveRecordingTopBanner() {
           </View>
         </View>
 
-        {/* Blinking Live REC Badge */}
+        {/!* Blinking Live REC Badge *!/}
         <Animated.View style={[styles.recBadge, { opacity: blinkAnim }]}>
           <View style={styles.recDot} />
           <Text style={styles.recText}>REC</Text>
@@ -95,6 +99,7 @@ export default function ActiveRecordingTopBanner() {
       </TouchableOpacity>
     </View>
   );
+  */
 }
 
 const styles = StyleSheet.create({
