@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFF6E6"
+      "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": true,
@@ -34,7 +34,7 @@
       "googleServicesFile": "./config/google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFF6E6"
+        "backgroundColor": "#ffffff"
       },
       "package": "com.heyshishu.nannyapp",
       "edgeToEdgeEnabled": true,
